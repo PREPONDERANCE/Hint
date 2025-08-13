@@ -8,11 +8,10 @@ import torch
 import torch.nn.functional as F
 
 from basicsr.models.archs.HINT_arch import HINT
-from skimage import img_as_ubyte
+from skimage.util import img_as_ubyte
 from natsort import natsorted
 from glob import glob
 import utils
-from pdb import set_trace as stx
 
 parser = argparse.ArgumentParser(description="Gaussian Color Denoising using HINT")
 

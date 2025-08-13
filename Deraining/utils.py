@@ -2,10 +2,9 @@
 ## Syed Waqas Zamir, Aditya Arora, Salman Khan, Munawar Hayat, Fahad Shahbaz Khan, and Ming-Hsuan Yang
 ## https://arxiv.org/abs/2111.09881
 
-import numpy as np
-import os
 import cv2
 import math
+import numpy as np
 
 
 def calculate_psnr(img1, img2, border=0):

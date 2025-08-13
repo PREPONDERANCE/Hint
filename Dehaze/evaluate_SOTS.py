@@ -1,14 +1,11 @@
 import os
-import numpy as np
+import argparse
+import concurrent.futures
+
+import utils
+
 from glob import glob
 from natsort import natsorted
-from skimage import io
-import cv2
-import argparse
-from skimage.metrics import structural_similarity
-from tqdm import tqdm
-import concurrent.futures
-import utils
 
 
 def proc(filename):

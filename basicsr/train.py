@@ -1,11 +1,14 @@
+import math
+import time
+import jittor
+import random
+import logging
 import argparse
 import datetime
-import logging
-import math
-import random
-import time
-import torch
+import numpy as np
+
 from os import path as osp
+from typing import Dict, Any
 
 from basicsr.data import create_dataloader, create_dataset
 from basicsr.data.data_sampler import EnlargedSampler
@@ -25,8 +28,6 @@ from basicsr.utils import (
 )
 from basicsr.utils.dist_util import get_dist_info, init_dist
 from basicsr.utils.options import dict2str, parse
-
-import numpy as np
 
 
 def parse_options(is_train=True):
@@ -147,9 +148,9 @@ def create_train_val_dataloader(opt, logger):
 
 def main():
     # parse options, set distributed setting, set ramdom seed
-    opt = parse_options(is_train=True)
+    opt: Dict[str, Any] = parse_options(is_train=True)
 
-    torch.backends.cudnn.benchmark = True
+    jittor.flags.use_cuda = 1
     # torch.backends.cudnn.deterministic = True
 
     # automatic resume ..
@@ -158,7 +159,7 @@ def main():
 
     try:
         states = os.listdir(state_folder_path)
-    except:
+    except Exception:
         states = []
 
     resume_state = None
@@ -169,11 +170,8 @@ def main():
 
     # load resume states if necessary
     if opt["path"].get("resume_state"):
-        device_id = torch.cuda.current_device()
-        resume_state = torch.load(
-            opt["path"]["resume_state"],
-            map_location=lambda storage, loc: storage.cuda(device_id),
-        )
+        # Jittor do not track device_id. Remove `torch.cuda.device_id`
+        resume_state = jittor.load(opt["path"]["resume_state"])
     else:
         resume_state = None
 
@@ -265,7 +263,7 @@ def main():
             )
 
             ### ------Progressive learning ---------------------
-            j = ((current_iter > groups) != True).nonzero()[0]
+            j = (current_iter <= groups).nonzero()[0]
             if len(j) == 0:
                 bs_j = len(groups) - 1
             else:
@@ -275,9 +273,10 @@ def main():
             mini_batch_size = mini_batch_sizes[bs_j]
 
             if logger_j[bs_j]:
+                # Jittor do not have device count. Remove `torch.cuda.device_count()`
                 logger.info(
                     "\n Updating Patch_Size to {} and Batch_Size to {} \n".format(
-                        mini_gt_size, mini_batch_size * torch.cuda.device_count()
+                        mini_gt_size, mini_batch_size
                     )
                 )
                 logger_j[bs_j] = False

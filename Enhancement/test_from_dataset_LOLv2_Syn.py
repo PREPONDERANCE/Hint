@@ -1,9 +1,8 @@
-from ast import arg
-import numpy as np
 import os
-import argparse
-from tqdm import tqdm
 import cv2
+import argparse
+import numpy as np
+from tqdm import tqdm
 
 import torch.nn as nn
 import torch
@@ -11,14 +10,20 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import utils
 
-from natsort import natsorted
 from glob import glob
-from skimage import img_as_ubyte
-from pdb import set_trace as stx
-from skimage import metrics
+from natsort import natsorted
+from skimage.util import img_as_ubyte
 
 from basicsr.models import create_model
-from basicsr.utils.options import dict2str, parse
+from basicsr.utils.options import parse
+from basicsr.data.SDSD_image_dataset import Dataset_SDSDImage as Dataset
+
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 parser = argparse.ArgumentParser(description="Image Enhancement using HINT")
 
@@ -62,12 +67,6 @@ yaml_file = args.opt
 weights = args.weights
 print(f"dataset {args.dataset}")
 
-import yaml
-
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
 
 opt = parse(args.opt, is_train=False)
 opt["dist"] = False
@@ -85,7 +84,7 @@ checkpoint = torch.load(weights)
 
 try:
     model_restoration.load_state_dict(checkpoint["params"])
-except:
+except Exception:
     new_checkpoint = {}
     for k in checkpoint["params"]:
         new_checkpoint["module." + k] = checkpoint["params"][k]
@@ -112,12 +111,7 @@ ssim = []
 if dataset in ["SID", "SMID", "SDSD_indoor", "SDSD_outdoor"]:
     os.makedirs(result_dir_input, exist_ok=True)
     os.makedirs(result_dir_gt, exist_ok=True)
-    if dataset == "SID":
-        from basicsr.data.SID_image_dataset import Dataset_SIDImage as Dataset
-    elif dataset == "SMID":
-        from basicsr.data.paired_image_dataset import Dataset_SMIDImage as Dataset
-    else:
-        from basicsr.data.SDSD_image_dataset import Dataset_SDSDImage as Dataset
+
     opt = opt["datasets"]["val"]
     opt["phase"] = "test"
     if opt.get("scale") is None:

@@ -16,8 +16,14 @@ import utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.HINT_arch import HINT
-from skimage import img_as_ubyte
-from pdb import set_trace as stx
+from skimage.util import img_as_ubyte
+
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 parser = argparse.ArgumentParser(description="Image Deraining using HINT")
 
@@ -38,13 +44,6 @@ args = parser.parse_args()
 
 ####### Load yaml #######
 yaml_file = "Options/Deraining_HINT_syn_rain100L.yml"
-import yaml
-
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
-
 x = yaml.load(open(yaml_file, mode="r"), Loader=Loader)
 
 s = x["network_g"].pop("type")

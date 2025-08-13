@@ -1,6 +1,7 @@
-import numpy as np
 import os
+import math
 import argparse
+import numpy as np
 from tqdm import tqdm
 
 import torch.nn as nn
@@ -11,8 +12,7 @@ import utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.HINT_arch import HINT
-from skimage import img_as_ubyte
-from pdb import set_trace as stx
+from skimage.util import img_as_ubyte
 
 parser = argparse.ArgumentParser(description="Image Desnowing using HINT")
 

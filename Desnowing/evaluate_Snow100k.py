@@ -3,21 +3,18 @@
 ## https://arxiv.org/abs/2111.09881
 
 import os
-import numpy as np
+import argparse
+import concurrent.futures
+
 from glob import glob
 from natsort import natsorted
-from skimage import io
-import cv2
-import argparse
-from skimage.metrics import structural_similarity
-from tqdm import tqdm
-import concurrent.futures
+
 import utils
 
 
 def proc(filename):
-    tar, prd = filename
-    prd_name = prd.split("/")[-1] + ".png"
+    _, prd = filename
+
     t_name = prd.split("/")[-1].split(".")[0] + ".jpg"
     tar_name = "./dataset/Snow100K/test2000/Gt/" + t_name
     tar_img = utils.load_img(tar_name)

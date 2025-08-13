@@ -1,6 +1,14 @@
-import numpy as np
 import os
+import math
+import yaml
 import argparse
+import numpy as np
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
+
 from tqdm import tqdm
 
 import torch.nn as nn
@@ -11,8 +19,7 @@ import utils
 from natsort import natsorted
 from glob import glob
 from basicsr.models.archs.HINT_arch import HINT
-from skimage import img_as_ubyte
-from pdb import set_trace as stx
+from skimage.util import img_as_ubyte
 
 parser = argparse.ArgumentParser(description="Image Dehazning using HINT")
 
@@ -81,12 +88,7 @@ def mergeimage(split_data, starts, crop_size=128, resolution=(1, 3, 128, 128)):
 
 ####### Load yaml #######
 yaml_file = "Options/RealDehazing_HINT.yml"
-import yaml
 
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
 
 x = yaml.load(open(yaml_file, mode="r"), Loader=Loader)
 
