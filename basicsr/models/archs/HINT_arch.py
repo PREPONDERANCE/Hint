@@ -285,9 +285,7 @@ class Attention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(
-        self, dim, num_heads, ffn_expansion_factor, bias, LayerNorm_type, isAtt
-    ):
+    def __init__(self, dim, num_heads, ffn_expansion_factor, bias, LayerNorm_type, isAtt):
         super(TransformerBlock, self).__init__()
         self.isAtt = isAtt
         if self.isAtt:
@@ -342,9 +340,7 @@ class Upsample(nn.Module):
         super(Upsample, self).__init__()
 
         self.body = nn.Sequential(
-            nn.Conv2d(
-                n_feat, n_feat * 2, kernel_size=3, stride=1, padding=1, bias=False
-            ),
+            nn.Conv2d(n_feat, n_feat * 2, kernel_size=3, stride=1, padding=1, bias=False),
             nn.PixelShuffle(2),
         )
 

@@ -78,9 +78,9 @@ class FaceRestorationHelper(object):
                 print("Detect several faces and only keep the largest.")
                 face_areas = []
                 for i in range(len(det_faces)):
-                    face_area = (
-                        det_faces[i].rect.right() - det_faces[i].rect.left()
-                    ) * (det_faces[i].rect.bottom() - det_faces[i].rect.top())
+                    face_area = (det_faces[i].rect.right() - det_faces[i].rect.left()) * (
+                        det_faces[i].rect.bottom() - det_faces[i].rect.top()
+                    )
                     face_areas.append(face_area)
                 largest_idx = face_areas.index(max(face_areas))
                 self.det_faces = [det_faces[largest_idx]]

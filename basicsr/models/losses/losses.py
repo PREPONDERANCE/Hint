@@ -51,9 +51,7 @@ class L1Loss(nn.Module):
             weight (Tensor, optional): of shape (N, C, H, W). Element-wise
                 weights. Default: None.
         """
-        return self.loss_weight * l1_loss(
-            pred, target, weight, reduction=self.reduction
-        )
+        return self.loss_weight * l1_loss(pred, target, weight, reduction=self.reduction)
 
 
 class FFTLoss(nn.Module):
@@ -122,9 +120,7 @@ class MSELoss(nn.Module):
             weight (Tensor, optional): of shape (N, C, H, W). Element-wise
                 weights. Default: None.
         """
-        return self.loss_weight * mse_loss(
-            pred, target, weight, reduction=self.reduction
-        )
+        return self.loss_weight * mse_loss(pred, target, weight, reduction=self.reduction)
 
 
 class PSNRLoss(nn.Module):

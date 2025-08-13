@@ -328,15 +328,15 @@ class ImageCleanModel(BaseModel):
                 if use_image:
                     for name, opt_ in opt_metric.items():
                         metric_type = opt_.pop("type")
-                        self.metric_results[name] += getattr(
-                            metric_module, metric_type
-                        )(sr_img, gt_img, **opt_)
+                        self.metric_results[name] += getattr(metric_module, metric_type)(
+                            sr_img, gt_img, **opt_
+                        )
                 else:
                     for name, opt_ in opt_metric.items():
                         metric_type = opt_.pop("type")
-                        self.metric_results[name] += getattr(
-                            metric_module, metric_type
-                        )(visuals["result"], visuals["gt"], **opt_)
+                        self.metric_results[name] += getattr(metric_module, metric_type)(
+                            visuals["result"], visuals["gt"], **opt_
+                        )
 
             cnt += 1
 

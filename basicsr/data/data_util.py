@@ -145,9 +145,7 @@ def paired_paths_from_lmdb(folders, keys):
     with open(osp.join(gt_folder, "meta_info.txt")) as fin:
         gt_lmdb_keys = [line.split(".")[0] for line in fin]
     if set(input_lmdb_keys) != set(gt_lmdb_keys):
-        raise ValueError(
-            f"Keys in {input_key}_folder and {gt_key}_folder are different."
-        )
+        raise ValueError(f"Keys in {input_key}_folder and {gt_key}_folder are different.")
     else:
         paths = []
         for lmdb_key in sorted(input_lmdb_keys):
@@ -295,16 +293,12 @@ def paired_DP_paths_from_folder(folders, keys, filename_tmpl):
         basename_input, ext_input = osp.splitext(osp.basename(inputL_path))
         inputL_name = f"{filename_tmpl.format(basename)}{ext_input}"
         inputL_path = osp.join(inputL_folder, inputL_name)
-        assert inputL_name in inputL_paths, (
-            f"{inputL_name} is not in {inputL_key}_paths."
-        )
+        assert inputL_name in inputL_paths, f"{inputL_name} is not in {inputL_key}_paths."
         inputR_path = inputR_paths[idx]
         basename_input, ext_input = osp.splitext(osp.basename(inputR_path))
         inputR_name = f"{filename_tmpl.format(basename)}{ext_input}"
         inputR_path = osp.join(inputR_folder, inputR_name)
-        assert inputR_name in inputR_paths, (
-            f"{inputR_name} is not in {inputR_key}_paths."
-        )
+        assert inputR_name in inputR_paths, f"{inputR_name} is not in {inputR_key}_paths."
         gt_path = osp.join(gt_folder, gt_path)
         paths.append(
             dict(

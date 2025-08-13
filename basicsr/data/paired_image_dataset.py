@@ -511,9 +511,7 @@ class Dataset_PairedImage_derainSpad(data.Dataset):
                 for line in fin:
                     gt_path = os.path.join(basename, line.split(" ")[1][1:-1])
                     input_path = os.path.join(basename, line.split(" ")[0][1:])
-                    paths.append(
-                        dict([(f"lq_path", input_path), (f"gt_path", gt_path)])
-                    )
+                    paths.append(dict([(f"lq_path", input_path), (f"gt_path", gt_path)]))
             self.paths = paths
             # self.paths = [
             #     osp.join(self.gt_folder,

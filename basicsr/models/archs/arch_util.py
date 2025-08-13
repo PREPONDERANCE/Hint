@@ -108,9 +108,7 @@ class Upsample(nn.Sequential):
         super(Upsample, self).__init__(*m)
 
 
-def flow_warp(
-    x, flow, interp_mode="bilinear", padding_mode="zeros", align_corners=True
-):
+def flow_warp(x, flow, interp_mode="bilinear", padding_mode="zeros", align_corners=True):
     """Warp an image or feature map with optical flow.
 
     Args:
@@ -178,9 +176,7 @@ def resize_flow(flow, size_type, sizes, interp_mode="bilinear", align_corners=Fa
     elif size_type == "shape":
         output_h, output_w = sizes[0], sizes[1]
     else:
-        raise ValueError(
-            f"Size type should be ratio or shape, but got type {size_type}."
-        )
+        raise ValueError(f"Size type should be ratio or shape, but got type {size_type}.")
 
     input_flow = flow.clone()
     ratio_h = output_h / flow_h

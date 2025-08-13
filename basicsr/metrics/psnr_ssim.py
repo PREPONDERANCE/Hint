@@ -29,8 +29,7 @@ def calculate_psnr(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
     )
     if input_order not in ["HWC", "CHW"]:
         raise ValueError(
-            f"Wrong input_order {input_order}. Supported input_orders are "
-            '"HWC" and "CHW"'
+            f'Wrong input_order {input_order}. Supported input_orders are "HWC" and "CHW"'
         )
     if type(img1) == torch.Tensor:
         if len(img1.shape) == 4:
@@ -102,9 +101,7 @@ def prepare_for_ssim(img, k):
 
     with torch.no_grad():
         img = torch.from_numpy(img).unsqueeze(0).unsqueeze(0).float()
-        conv = torch.nn.Conv2d(
-            1, 1, k, stride=1, padding=k // 2, padding_mode="reflect"
-        )
+        conv = torch.nn.Conv2d(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
         conv.weight.requires_grad = False
         conv.weight[:, :, :, :] = 1.0 / (k * k)
 
@@ -121,9 +118,7 @@ def prepare_for_ssim_rgb(img, k):
     with torch.no_grad():
         img = torch.from_numpy(img).float()  # HxWx3
 
-        conv = torch.nn.Conv2d(
-            1, 1, k, stride=1, padding=k // 2, padding_mode="reflect"
-        )
+        conv = torch.nn.Conv2d(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
         conv.weight.requires_grad = False
         conv.weight[:, :, :, :] = 1.0 / (k * k)
 
@@ -273,8 +268,7 @@ def calculate_ssim(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
     )
     if input_order not in ["HWC", "CHW"]:
         raise ValueError(
-            f"Wrong input_order {input_order}. Supported input_orders are "
-            '"HWC" and "CHW"'
+            f'Wrong input_order {input_order}. Supported input_orders are "HWC" and "CHW"'
         )
 
     if type(img1) == torch.Tensor:

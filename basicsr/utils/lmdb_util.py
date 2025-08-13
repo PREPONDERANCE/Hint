@@ -161,9 +161,7 @@ def read_img_worker(path, key, compress_level):
         c = 1
     else:
         h, w, c = img.shape
-    _, img_byte = cv2.imencode(
-        ".png", img, [cv2.IMWRITE_PNG_COMPRESSION, compress_level]
-    )
+    _, img_byte = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, compress_level])
     return (key, img_byte, (h, w, c))
 
 

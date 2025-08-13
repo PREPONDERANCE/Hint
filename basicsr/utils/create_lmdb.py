@@ -17,9 +17,7 @@ def prepare_keys(folder_path, suffix="png"):
     """
     print("Reading image path list ...")
     img_path_list = sorted(list(scandir(folder_path, suffix=suffix, recursive=False)))
-    keys = [
-        img_path.split(".{}".format(suffix))[0] for img_path in sorted(img_path_list)
-    ]
+    keys = [img_path.split(".{}".format(suffix))[0] for img_path in sorted(img_path_list)]
 
     return img_path_list, keys
 

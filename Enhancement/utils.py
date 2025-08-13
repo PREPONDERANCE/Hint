@@ -13,19 +13,19 @@ from pdb import set_trace as stx
 
 def calculate_psnr(img1, img2, border=0):
     # img1 and img2 have range [0, 255]
-    #img1 = img1.squeeze()
-    #img2 = img2.squeeze()
+    # img1 = img1.squeeze()
+    # img2 = img2.squeeze()
     if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
+        raise ValueError("Input images must have the same dimensions.")
     h, w = img1.shape[:2]
-    img1 = img1[border:h - border, border:w - border]
-    img2 = img2[border:h - border, border:w - border]
+    img1 = img1[border : h - border, border : w - border]
+    img2 = img2[border : h - border, border : w - border]
 
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
-    mse = np.mean((img1 - img2)**2)
+    mse = np.mean((img1 - img2) ** 2)
     if mse == 0:
-        return float('inf')
+        return float("inf")
     return 20 * math.log10(255.0 / math.sqrt(mse))
 
 
@@ -40,17 +40,17 @@ def PSNR(img1, img2):
 # SSIM
 # --------------------------------------------
 def calculate_ssim(img1, img2, border=0):
-    '''calculate SSIM
+    """calculate SSIM
     the same outputs as MATLAB's
     img1, img2: [0, 255]
-    '''
-    #img1 = img1.squeeze()
-    #img2 = img2.squeeze()
+    """
+    # img1 = img1.squeeze()
+    # img2 = img2.squeeze()
     if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
+        raise ValueError("Input images must have the same dimensions.")
     h, w = img1.shape[:2]
-    img1 = img1[border:h - border, border:w - border]
-    img2 = img2[border:h - border, border:w - border]
+    img1 = img1[border : h - border, border : w - border]
+    img2 = img2[border : h - border, border : w - border]
 
     if img1.ndim == 2:
         return ssim(img1, img2)
@@ -63,12 +63,12 @@ def calculate_ssim(img1, img2, border=0):
         elif img1.shape[2] == 1:
             return ssim(np.squeeze(img1), np.squeeze(img2))
     else:
-        raise ValueError('Wrong input image dimensions.')
+        raise ValueError("Wrong input image dimensions.")
 
 
 def ssim(img1, img2):
-    C1 = (0.01 * 255)**2
-    C2 = (0.03 * 255)**2
+    C1 = (0.01 * 255) ** 2
+    C2 = (0.03 * 255) ** 2
 
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
@@ -84,8 +84,9 @@ def ssim(img1, img2):
     sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
     sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
 
-    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                            (sigma1_sq + sigma2_sq + C2))
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / (
+        (mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2)
+    )
     return ssim_map.mean()
 
 
@@ -105,29 +106,30 @@ def save_gray_img(filepath, img):
     cv2.imwrite(filepath, img)
 
 
-def visualization(feature, save_path, type='max', colormap=cv2.COLORMAP_JET):
-    '''
+def visualization(feature, save_path, type="max", colormap=cv2.COLORMAP_JET):
+    """
     :param feature: [C,H,W]
     :param save_path: saving path
     :param type: 'mean' or 'max'
     :param colormap: the type of the pseudocolor map
-    '''
+    """
     feature = feature.cpu().numpy()
-    if type == 'mean':
+    if type == "mean":
         feature = np.mean(feature, axis=0)
     else:
         feature = np.max(feature, axis=0)
     normed_feat = (feature - feature.min()) / (feature.max() - feature.min())
-    normed_feat = (normed_feat * 255).astype('uint8')
+    normed_feat = (normed_feat * 255).astype("uint8")
     color_feat = cv2.applyColorMap(normed_feat, colormap)
     # stx()
     cv2.imwrite(save_path, color_feat)
 
-def my_summary(test_model, H = 256, W = 256, C = 3, N = 1):
+
+def my_summary(test_model, H=256, W=256, C=3, N=1):
     model = test_model.cuda()
     print(model)
     inputs = torch.randn((N, C, H, W)).cuda()
-    flops = FlopCountAnalysis(model,inputs)
+    flops = FlopCountAnalysis(model, inputs)
     n_param = sum([p.nelement() for p in model.parameters()])
-    print(f'GMac:{flops.total()/(1024*1024*1024)}')
-    print(f'Params:{n_param}')
+    print(f"GMac:{flops.total() / (1024 * 1024 * 1024)}")
+    print(f"Params:{n_param}")

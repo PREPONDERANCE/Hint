@@ -114,8 +114,7 @@ def niqe(
         mu = convolve(img, gaussian_window, mode="nearest")
         sigma = np.sqrt(
             np.abs(
-                convolve(np.square(img), gaussian_window, mode="nearest")
-                - np.square(mu)
+                convolve(np.square(img), gaussian_window, mode="nearest") - np.square(mu)
             )
         )
         # normalize, as in Eq. 1 in the paper

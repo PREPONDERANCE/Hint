@@ -203,9 +203,7 @@ class REDSDataset(data.Dataset):
             img_lqs.extend(img_flows)
 
         # randomly crop
-        img_gt, img_lqs = paired_random_crop(
-            img_gt, img_lqs, gt_size, scale, img_gt_path
-        )
+        img_gt, img_lqs = paired_random_crop(img_gt, img_lqs, gt_size, scale, img_gt_path)
         if self.flow_root is not None:
             img_lqs, img_flows = img_lqs[: self.num_frame], img_lqs[self.num_frame :]
 

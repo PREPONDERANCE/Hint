@@ -175,9 +175,7 @@ class VideoTestVimeo90KDataset(data.Dataset):
             "idx": [],
             "border": [],
         }
-        neighbor_list = [
-            i + (9 - opt["num_frame"]) // 2 for i in range(opt["num_frame"])
-        ]
+        neighbor_list = [i + (9 - opt["num_frame"]) // 2 for i in range(opt["num_frame"])]
 
         # file client (io backend)
         self.file_client = None
@@ -251,9 +249,7 @@ class VideoTestDUFDataset(VideoTestDataset):
                 imgs_lq = self.imgs_gt[folder].index_select(
                     0, torch.LongTensor(select_idx)
                 )
-                imgs_lq = duf_downsample(
-                    imgs_lq, kernel_size=13, scale=self.opt["scale"]
-                )
+                imgs_lq = duf_downsample(imgs_lq, kernel_size=13, scale=self.opt["scale"])
             else:
                 imgs_lq = self.imgs_lq[folder].index_select(
                     0, torch.LongTensor(select_idx)
@@ -266,9 +262,7 @@ class VideoTestDUFDataset(VideoTestDataset):
                 imgs_lq = read_img_seq(
                     img_paths_lq, require_mod_crop=True, scale=self.opt["scale"]
                 )
-                imgs_lq = duf_downsample(
-                    imgs_lq, kernel_size=13, scale=self.opt["scale"]
-                )
+                imgs_lq = duf_downsample(imgs_lq, kernel_size=13, scale=self.opt["scale"])
             else:
                 img_paths_lq = [self.imgs_lq[folder][i] for i in select_idx]
                 imgs_lq = read_img_seq(img_paths_lq)

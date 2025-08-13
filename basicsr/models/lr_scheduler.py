@@ -37,9 +37,7 @@ class MultiStepRestartLR(_LRScheduler):
     def get_lr(self):
         if self.last_epoch in self.restarts:
             weight = self.restart_weights[self.restarts.index(self.last_epoch)]
-            return [
-                group["initial_lr"] * weight for group in self.optimizer.param_groups
-            ]
+            return [group["initial_lr"] * weight for group in self.optimizer.param_groups]
         if self.last_epoch not in self.milestones:
             return [group["lr"] for group in self.optimizer.param_groups]
         return [

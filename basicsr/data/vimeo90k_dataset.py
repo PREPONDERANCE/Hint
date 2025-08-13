@@ -109,9 +109,7 @@ class Vimeo90KDataset(data.Dataset):
             img_lqs.append(img_lq)
 
         # randomly crop
-        img_gt, img_lqs = paired_random_crop(
-            img_gt, img_lqs, gt_size, scale, img_gt_path
-        )
+        img_gt, img_lqs = paired_random_crop(img_gt, img_lqs, gt_size, scale, img_gt_path)
 
         # augmentation - flip, rotate
         img_lqs.append(img_gt)

@@ -87,8 +87,7 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
             img_np = _tensor.numpy()
         else:
             raise TypeError(
-                "Only support 4D, 3D or 2D tensor. "
-                f"But received with dimension: {n_dim}"
+                f"Only support 4D, 3D or 2D tensor. But received with dimension: {n_dim}"
             )
         if out_type == np.uint8:
             # Unlike MATLAB, numpy.unit8() WILL NOT round by default.
