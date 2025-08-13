@@ -7,51 +7,70 @@
 [Shihao Zhou](https://joshyzhou.github.io/), [Dayu Li](https://github.com/nkldy22), [Jinshan Pan](https://jspan.github.io/), [Juncheng Zhou](https://github.com/ZhouJunCheng99), [Jinglei Shi](https://jingleishi.github.io/) and [Jufeng Yang](https://cv.nankai.edu.cn/)
 
 #### News
+
 - **Jul 19, 2025:** [Hugging Face Demo](https://huggingface.co/spaces/yssszzzzzzzzy/HINT) is available now, thanks contribution of [Sen](https://github.com/yss730)
-- **Jun 26, 2025:** HINT has been accepted to ICCV 2025 :tada: 
+- **Jun 26, 2025:** HINT has been accepted to ICCV 2025 :tada:
 <hr />
 
 ## Training
+
 ### Derain
+
 To train HINT on rain100L, you can run:
+
 ```sh
 ./train.sh Deraining/Options/Deraining_HINT_syn_rain100L.yml
 ```
+
 ### Dehaze
+
 To train HINT on SOTS, you can run:
+
 ```sh
 ./train.sh Dehaze/Options/RealDehazing_HINT.yml
 ```
+
 ### Denoising
+
 To train HINT on WB, you can run:
+
 ```sh
 ./train.sh Denoising/Options/GaussianColorDenoising_HINT.yml
 ```
+
 ### Desnowing
+
 To train HINT on snow100k, you can run:
+
 ```sh
 ./train.sh Desnowing/Options/Desnow_snow100k_HINT.yml
 ```
-### Enhancement 
+
+### Enhancement
+
 To train HINT on LOL_v2_real, you can run:
+
 ```sh
-./train.sh Demoiring/Options/HINT_LOL_v2_real.yml
+./train.sh Enhancement/Options/HINT_LOL_v2_real.yml
 ```
 
 To train HINT on LOL_v2_synthetic, you can run:
+
 ```sh
-./train.sh Demoiring/Options/HINT_LOL_v2_synthetic.yml
+./train.sh Enhancement/Options/HINT_LOL_v2_synthetic.yml
 ```
 
 ## Evaluation
+
 To evaluate HINT, you can refer commands in 'test.sh'
 
 For evaluate on each dataset, you should uncomment corresponding line.
 
-
 ## Results
-Experiments are performed for different image processing tasks. 
+
+Experiments are performed for different image processing tasks.
 Here is a summary table containing hyperlinks for easy navigation:
+
 <table>
   <tr>
     <th align="left">Benchmark</th>
@@ -91,8 +110,8 @@ Here is a summary table containing hyperlinks for easy navigation:
 
 </table>
 
-
 ## Citation
+
 If you find this project useful, please consider citing:
 
     @inproceedings{zhou_ICCV25_HINT,
@@ -104,4 +123,4 @@ If you find this project useful, please consider citing:
 
 ## Acknowledgement
 
-This code borrows heavily from [Restormer](https://github.com/swz30/Restormer). 
+This code borrows heavily from [Restormer](https://github.com/swz30/Restormer).
