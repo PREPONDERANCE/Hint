@@ -1,5 +1,4 @@
 import os
-import math
 import pickle
 import random
 import numpy as np
@@ -12,13 +11,25 @@ import cv2
 ####################
 
 ###################### get image path list ######################
-IMG_EXTENSIONS = ['.jpg', '.JPG', '.jpeg', '.JPEG', '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP']
+IMG_EXTENSIONS = [
+    ".jpg",
+    ".JPG",
+    ".jpeg",
+    ".JPEG",
+    ".png",
+    ".PNG",
+    ".ppm",
+    ".PPM",
+    ".bmp",
+    ".BMP",
+]
 
 
 def flip(x, dim):
     indices = [slice(None)] * x.dim()
-    indices[dim] = torch.arange(x.size(dim) - 1, -1, -1,
-                                dtype=torch.long, device=x.device)
+    indices[dim] = torch.arange(
+        x.size(dim) - 1, -1, -1, dtype=torch.long, device=x.device
+    )
     return x[tuple(indices)]
 
 
@@ -28,22 +39,22 @@ def is_image_file(filename):
 
 def _get_paths_from_images(path):
     """get image path list from image folder"""
-    assert os.path.isdir(path), '{:s} is not a valid directory'.format(path)
+    assert os.path.isdir(path), "{:s} is not a valid directory".format(path)
     images = []
     for dirpath, _, fnames in sorted(os.walk(path)):
         for fname in sorted(fnames):
             if is_image_file(fname):
                 img_path = os.path.join(dirpath, fname)
                 images.append(img_path)
-    assert images, '{:s} has no valid image file'.format(path)
+    assert images, "{:s} has no valid image file".format(path)
     return images
 
 
 def _get_paths_from_lmdb(dataroot):
     """get image path list from lmdb meta info"""
-    meta_info = pickle.load(open(os.path.join(dataroot, 'meta_info.pkl'), 'rb'))
-    paths = meta_info['keys']
-    sizes = meta_info['resolution']
+    meta_info = pickle.load(open(os.path.join(dataroot, "meta_info.pkl"), "rb"))
+    paths = meta_info["keys"]
+    sizes = meta_info["resolution"]
     if len(sizes) == 1:
         sizes = sizes * len(paths)
     return paths, sizes
@@ -54,17 +65,19 @@ def get_image_paths(data_type, dataroot):
     support lmdb or image files"""
     paths, sizes = None, None
     if dataroot is not None:
-        if data_type == 'lmdb':
+        if data_type == "lmdb":
             paths, sizes = _get_paths_from_lmdb(dataroot)
-        elif data_type == 'img':
+        elif data_type == "img":
             paths = sorted(_get_paths_from_images(dataroot))
         else:
-            raise NotImplementedError('data_type [{:s}] is not recognized.'.format(data_type))
+            raise NotImplementedError(
+                "data_type [{:s}] is not recognized.".format(data_type)
+            )
     return paths, sizes
 
 
 def glob_file_list(root):
-    return sorted(glob.glob(os.path.join(root, '*')))
+    return sorted(glob.glob(os.path.join(root, "*")))
 
 
 ###################### read images ######################
@@ -72,7 +85,7 @@ def _read_img_lmdb(env, key, size):
     """read image from lmdb with key (w/ and w/o fixed size)
     size: (C, H, W) tuple"""
     with env.begin(write=False) as txn:
-        buf = txn.get(key.encode('ascii'))
+        buf = txn.get(key.encode("ascii"))
     img_flat = np.frombuffer(buf, dtype=np.uint8)
     C, H, W = size
     img = img_flat.reshape(H, W, C)
@@ -91,7 +104,7 @@ def read_img(env, path, size=None):
     else:
         img = _read_img_lmdb(env, path, size)
 
-    img = img.astype(np.float32) / 255.
+    img = img.astype(np.float32) / 255.0
     if img.ndim == 2:
         img = np.expand_dims(img, axis=2)
     # some images have 4 channels
@@ -112,7 +125,7 @@ def read_img2(env, path, size=None):
             # img = cv2.resize(img, size)
     else:
         img = _read_img_lmdb(env, path, size)
-    img = img.astype(np.float32) / 255.
+    img = img.astype(np.float32) / 255.0
     if img.ndim == 2:
         img = np.expand_dims(img, axis=2)
     # some images have 4 channels
@@ -133,7 +146,7 @@ def read_img_seq(path, size=None):
     if type(path) is list:
         img_path_l = path
     else:
-        img_path_l = sorted(glob.glob(os.path.join(path, '*')))
+        img_path_l = sorted(glob.glob(os.path.join(path, "*")))
 
     img_l = [read_img(None, v, size) for v in img_path_l]
     # stack to Torch tensor
@@ -141,8 +154,12 @@ def read_img_seq(path, size=None):
     try:
         imgs = imgs[:, :, :, [2, 1, 0]]
     except Exception:
-        import ipdb; ipdb.set_trace()
-    imgs = torch.from_numpy(np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))).float()
+        import ipdb
+
+        ipdb.set_trace()
+    imgs = torch.from_numpy(
+        np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))
+    ).float()
     return imgs
 
 
@@ -158,7 +175,7 @@ def read_img_seq2(path, size=None):
     if type(path) is list:
         img_path_l = path
     else:
-        img_path_l = sorted(glob.glob(os.path.join(path, '*')))
+        img_path_l = sorted(glob.glob(os.path.join(path, "*")))
 
     img_l = [read_img2(None, v, size) for v in img_path_l]
     # stack to Torch tensor
@@ -166,14 +183,16 @@ def read_img_seq2(path, size=None):
     try:
         imgs = imgs[:, :, :, [2, 1, 0]]
     except Exception:
-        import ipdb; ipdb.set_trace()
-    imgs = torch.from_numpy(np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))).float()
+        import ipdb
+
+        ipdb.set_trace()
+    imgs = torch.from_numpy(
+        np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))
+    ).float()
     return imgs
 
 
-
-
-def index_generation(crt_i, max_n, N, padding='reflection'):
+def index_generation(crt_i, max_n, N, padding="reflection"):
     """Generate an index list for reading N frames from a sequence of images
     Args:
         crt_i (int): current center index
@@ -195,27 +214,27 @@ def index_generation(crt_i, max_n, N, padding='reflection'):
 
     for i in range(crt_i - n_pad, crt_i + n_pad + 1):
         if i < 0:
-            if padding == 'replicate':
+            if padding == "replicate":
                 add_idx = 0
-            elif padding == 'reflection':
+            elif padding == "reflection":
                 add_idx = -i
-            elif padding == 'new_info':
+            elif padding == "new_info":
                 add_idx = (crt_i + n_pad) + (-i)
-            elif padding == 'circle':
+            elif padding == "circle":
                 add_idx = N + i
             else:
-                raise ValueError('Wrong padding mode')
+                raise ValueError("Wrong padding mode")
         elif i > max_n:
-            if padding == 'replicate':
+            if padding == "replicate":
                 add_idx = max_n
-            elif padding == 'reflection':
+            elif padding == "reflection":
                 add_idx = max_n * 2 - i
-            elif padding == 'new_info':
+            elif padding == "new_info":
                 add_idx = (crt_i - n_pad) - (i - max_n)
-            elif padding == 'circle':
+            elif padding == "circle":
                 add_idx = i - N
             else:
-                raise ValueError('Wrong padding mode')
+                raise ValueError("Wrong padding mode")
         else:
             add_idx = i
         return_l.append(add_idx)
@@ -245,7 +264,6 @@ def augment(img_list, hflip=True, rot=True):
         return img
 
     return [_augment(img) for img in img_list]
-
 
 
 def augment_torch(img_list, hflip=True, rot=True):
@@ -302,13 +320,13 @@ def augment_flow(img_list, flow_list, hflip=True, rot=True):
 
 def channel_convert(in_c, tar_type, img_list):
     """conversion among BGR, gray and y"""
-    if in_c == 3 and tar_type == 'gray':  # BGR to gray
+    if in_c == 3 and tar_type == "gray":  # BGR to gray
         gray_list = [cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) for img in img_list]
         return [np.expand_dims(img, axis=2) for img in gray_list]
-    elif in_c == 3 and tar_type == 'y':  # BGR to y
+    elif in_c == 3 and tar_type == "y":  # BGR to y
         y_list = [bgr2ycbcr(img, only_y=True) for img in img_list]
         return [np.expand_dims(img, axis=2) for img in y_list]
-    elif in_c == 1 and tar_type == 'RGB':  # gray/y to BGR
+    elif in_c == 1 and tar_type == "RGB":  # gray/y to BGR
         return [cv2.cvtColor(img, cv2.COLOR_GRAY2BGR) for img in img_list]
     else:
         return img_list
@@ -324,17 +342,23 @@ def rgb2ycbcr(img, only_y=True):
     in_img_type = img.dtype
     img.astype(np.float32)
     if in_img_type != np.uint8:
-        img *= 255.
+        img *= 255.0
     # convert
     if only_y:
         rlt = np.dot(img, [65.481, 128.553, 24.966]) / 255.0 + 16.0
     else:
-        rlt = np.matmul(img, [[65.481, -37.797, 112.0], [128.553, -74.203, -93.786],
-                              [24.966, 112.0, -18.214]]) / 255.0 + [16, 128, 128]
+        rlt = np.matmul(
+            img,
+            [
+                [65.481, -37.797, 112.0],
+                [128.553, -74.203, -93.786],
+                [24.966, 112.0, -18.214],
+            ],
+        ) / 255.0 + [16, 128, 128]
     if in_img_type == np.uint8:
         rlt = rlt.round()
     else:
-        rlt /= 255.
+        rlt /= 255.0
     return rlt.astype(in_img_type)
 
 
@@ -348,17 +372,23 @@ def bgr2ycbcr(img, only_y=True):
     in_img_type = img.dtype
     img.astype(np.float32)
     if in_img_type != np.uint8:
-        img *= 255.
+        img *= 255.0
     # convert
     if only_y:
         rlt = np.dot(img, [24.966, 128.553, 65.481]) / 255.0 + 16.0
     else:
-        rlt = np.matmul(img, [[24.966, 112.0, -18.214], [128.553, -74.203, -93.786],
-                              [65.481, -37.797, 112.0]]) / 255.0 + [16, 128, 128]
+        rlt = np.matmul(
+            img,
+            [
+                [24.966, 112.0, -18.214],
+                [128.553, -74.203, -93.786],
+                [65.481, -37.797, 112.0],
+            ],
+        ) / 255.0 + [16, 128, 128]
     if in_img_type == np.uint8:
         rlt = rlt.round()
     else:
-        rlt /= 255.
+        rlt /= 255.0
     return rlt.astype(in_img_type)
 
 
@@ -371,14 +401,20 @@ def ycbcr2rgb(img):
     in_img_type = img.dtype
     img.astype(np.float32)
     if in_img_type != np.uint8:
-        img *= 255.
+        img *= 255.0
     # convert
-    rlt = np.matmul(img, [[0.00456621, 0.00456621, 0.00456621], [0, -0.00153632, 0.00791071],
-                          [0.00625893, -0.00318811, 0]]) * 255.0 + [-222.921, 135.576, -276.836]
+    rlt = np.matmul(
+        img,
+        [
+            [0.00456621, 0.00456621, 0.00456621],
+            [0, -0.00153632, 0.00791071],
+            [0.00625893, -0.00318811, 0],
+        ],
+    ) * 255.0 + [-222.921, 135.576, -276.836]
     if in_img_type == np.uint8:
         rlt = rlt.round()
     else:
-        rlt /= 255.
+        rlt /= 255.0
     return rlt.astype(in_img_type)
 
 
@@ -388,12 +424,11 @@ def modcrop(img_in, scale):
     if img.ndim == 2:
         H, W = img.shape
         H_r, W_r = H % scale, W % scale
-        img = img[:H - H_r, :W - W_r]
+        img = img[: H - H_r, : W - W_r]
     elif img.ndim == 3:
         H, W, C = img.shape
         H_r, W_r = H % scale, W % scale
-        img = img[:H - H_r, :W - W_r, :]
+        img = img[: H - H_r, : W - W_r, :]
     else:
-        raise ValueError('Wrong img ndim: [{:d}].'.format(img.ndim))
+        raise ValueError("Wrong img ndim: [{:d}].".format(img.ndim))
     return img
-
