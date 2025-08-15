@@ -9,3 +9,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+experiments
+tb_logger
