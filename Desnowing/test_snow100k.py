@@ -14,6 +14,13 @@ from glob import glob
 from basicsr.models.archs.HINT_arch import HINT
 from skimage.util import img_as_ubyte
 
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
+
 parser = argparse.ArgumentParser(description="Image Desnowing using HINT")
 
 parser.add_argument(
@@ -81,12 +88,6 @@ def mergeimage(split_data, starts, crop_size=128, resolution=(1, 3, 128, 128)):
 
 ####### Load yaml #######
 yaml_file = "Options/Desnow_snow100k_HINT.yml"
-import yaml
-
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
 
 x = yaml.load(open(yaml_file, mode="r"), Loader=Loader)
 

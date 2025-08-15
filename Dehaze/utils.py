@@ -3,7 +3,6 @@
 ## https://arxiv.org/abs/2111.09881
 
 import numpy as np
-import os
 import cv2
 import math
 

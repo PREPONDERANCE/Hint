@@ -13,6 +13,13 @@ from natsort import natsorted
 from glob import glob
 import utils
 
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
+
 parser = argparse.ArgumentParser(description="Gaussian Color Denoising using HINT")
 
 parser.add_argument(
@@ -46,12 +53,7 @@ if args.model_type == "blind":
     yaml_file = "Options/GaussianColorDenoising_HINT.yml"
 else:
     yaml_file = f"Options/GaussianColorDenoising_RestormerSigma{args.sigmas}.yml"
-import yaml
 
-try:
-    from yaml import CLoader as Loader
-except ImportError:
-    from yaml import Loader
 
 x = yaml.load(open(yaml_file, mode="r"), Loader=Loader)
 
