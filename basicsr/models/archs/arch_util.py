@@ -1,13 +1,17 @@
 import math
-import torch
-from torch import nn as nn
-from torch.nn import functional as F
-from torch.nn import init as init
-from torch.nn.modules.batchnorm import _BatchNorm
+import jittor as jt
+
+from jittor import nn
+from typing import List, Union, Type
 
 
-@torch.no_grad()
-def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
+@jt.no_grad()
+def default_init_weights(
+    module_list: List[nn.Module],
+    scale: int = 1,
+    bias_fill: int = 0,
+    **kwargs,
+):
     """Initialize network weights.
 
     Args:
@@ -22,22 +26,27 @@ def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
     for module in module_list:
         for m in module.modules():
             if isinstance(m, nn.Conv2d):
-                init.kaiming_normal_(m.weight, **kwargs)
-                m.weight.data *= scale
+                nn.init.kaiming_normal_(m.weight, **kwargs)
+                # m.weight is a jittor var
+                m.weight.update(m.weight * scale)
                 if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
+                    m.bias.update(jt.full(m.bias.shape, bias_fill))
             elif isinstance(m, nn.Linear):
-                init.kaiming_normal_(m.weight, **kwargs)
-                m.weight.data *= scale
+                nn.init.kaiming_normal_(m.weight, **kwargs)
+                m.weight.update(m.weight * scale)
                 if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
-            elif isinstance(m, _BatchNorm):
-                init.constant_(m.weight, 1)
+                    m.bias.update(jt.full(m.bias.shape, bias_fill))
+            elif isinstance(m, nn.BatchNorm):
+                nn.init.constant_(m.weight, 1)
                 if m.bias is not None:
-                    m.bias.data.fill_(bias_fill)
+                    m.bias.update(jt.full(m.bias.shape, bias_fill))
 
 
-def make_layer(basic_block, num_basic_block, **kwarg):
+def make_layer(
+    basic_block: nn.Module,
+    num_basic_block: int,
+    **kwarg,
+) -> Type[nn.Module]:
     """Make layers by stacking the same blocks.
 
     Args:
@@ -58,7 +67,7 @@ class ResidualBlockNoBN(nn.Module):
 
     It has a style of:
         ---Conv-ReLU-Conv-+-
-         |________________|
+        |________________|
 
     Args:
         num_feat (int): Channel number of intermediate features.
@@ -68,17 +77,17 @@ class ResidualBlockNoBN(nn.Module):
             otherwise, use default_init_weights. Default: False.
     """
 
-    def __init__(self, num_feat=64, res_scale=1, pytorch_init=False):
+    def __init__(self, num_feat=64, res_scale=1, jt_init=False):
         super(ResidualBlockNoBN, self).__init__()
         self.res_scale = res_scale
         self.conv1 = nn.Conv2d(num_feat, num_feat, 3, 1, 1, bias=True)
         self.conv2 = nn.Conv2d(num_feat, num_feat, 3, 1, 1, bias=True)
         self.relu = nn.ReLU(inplace=True)
 
-        if not pytorch_init:
+        if not jt_init:
             default_init_weights([self.conv1, self.conv2], 0.1)
 
-    def forward(self, x):
+    def execute(self, x: jt.Var) -> jt.Var:
         identity = x
         out = self.conv2(self.relu(self.conv1(x)))
         return identity + out * self.res_scale
@@ -108,7 +117,13 @@ class Upsample(nn.Sequential):
         super(Upsample, self).__init__(*m)
 
 
-def flow_warp(x, flow, interp_mode="bilinear", padding_mode="zeros", align_corners=True):
+def flow_warp(
+    x: jt.Var,
+    flow: jt.Var,
+    interp_mode: str = "bilinear",
+    padding_mode: str = "zeros",
+    align_corners: bool = True,
+) -> jt.Var:
     """Warp an image or feature map with optical flow.
 
     Args:
@@ -127,18 +142,20 @@ def flow_warp(x, flow, interp_mode="bilinear", padding_mode="zeros", align_corne
     assert x.size()[-2:] == flow.size()[1:3]
     _, _, h, w = x.size()
     # create mesh grid
-    grid_y, grid_x = torch.meshgrid(
-        torch.arange(0, h).type_as(x), torch.arange(0, w).type_as(x)
+    grid_y, grid_x = jt.meshgrid(
+        jt.arange(0, h).type_as(x),
+        jt.arange(0, w).type_as(x),
     )
-    grid = torch.stack((grid_x, grid_y), 2).float()  # W(x), H(y), 2
+    grid = jt.stack((grid_x, grid_y), dim=2).float32()
     grid.requires_grad = False
 
     vgrid = grid + flow
     # scale grid to [-1,1]
     vgrid_x = 2.0 * vgrid[:, :, :, 0] / max(w - 1, 1) - 1.0
     vgrid_y = 2.0 * vgrid[:, :, :, 1] / max(h - 1, 1) - 1.0
-    vgrid_scaled = torch.stack((vgrid_x, vgrid_y), dim=3)
-    output = F.grid_sample(
+    vgrid_scaled = jt.stack((vgrid_x, vgrid_y), dim=3)
+
+    output = nn.grid_sample(
         x,
         vgrid_scaled,
         mode=interp_mode,
@@ -150,7 +167,13 @@ def flow_warp(x, flow, interp_mode="bilinear", padding_mode="zeros", align_corne
     return output
 
 
-def resize_flow(flow, size_type, sizes, interp_mode="bilinear", align_corners=False):
+def resize_flow(
+    flow: jt.Var,
+    size_type: str,
+    sizes: List[Union[int, float]],
+    interp_mode: str = "bilinear",
+    align_corners: bool = False,
+) -> jt.Var:
     """Resize a flow according to ratio or shape.
 
     Args:
@@ -183,17 +206,19 @@ def resize_flow(flow, size_type, sizes, interp_mode="bilinear", align_corners=Fa
     ratio_w = output_w / flow_w
     input_flow[:, 0, :, :] *= ratio_w
     input_flow[:, 1, :, :] *= ratio_h
-    resized_flow = F.interpolate(
+
+    resized_flow = nn.interpolate(
         input=input_flow,
         size=(output_h, output_w),
         mode=interp_mode,
         align_corners=align_corners,
     )
+
     return resized_flow
 
 
 # TODO: may write a cpp file
-def pixel_unshuffle(x, scale):
+def pixel_unshuffle(x: jt.Var, scale: int) -> jt.Var:
     """Pixel unshuffle.
 
     Args:
@@ -208,5 +233,11 @@ def pixel_unshuffle(x, scale):
     assert hh % scale == 0 and hw % scale == 0
     h = hh // scale
     w = hw // scale
-    x_view = x.view(b, c, h, scale, w, scale)
-    return x_view.permute(0, 1, 3, 5, 2, 4).reshape(b, out_channel, h, w)
+
+    x_view = (
+        jt.reshape(x, (b, c, h, scale, w, scale))
+        .transpose((0, 1, 3, 5, 2, 4))
+        .reshape((b, out_channel, h, w))
+    )
+
+    return x_view
