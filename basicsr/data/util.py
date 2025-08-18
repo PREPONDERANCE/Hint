@@ -1,10 +1,12 @@
 import os
+import cv2
+import glob
 import pickle
 import random
 import numpy as np
-import glob
-import torch
-import cv2
+import jittor as jt
+
+from typing import List, Tuple
 
 ####################
 # Files & IO
@@ -25,19 +27,17 @@ IMG_EXTENSIONS = [
 ]
 
 
-def flip(x, dim):
-    indices = [slice(None)] * x.dim()
-    indices[dim] = torch.arange(
-        x.size(dim) - 1, -1, -1, dtype=torch.long, device=x.device
-    )
+def flip(x: jt.Var, dim: int):
+    indices = [slice(None)] * x.ndim
+    indices[dim] = jt.arange(x.shape[dim] - 1, -1, -1, dtype=jt.int64)
     return x[tuple(indices)]
 
 
-def is_image_file(filename):
+def is_image_file(filename: str):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
 
 
-def _get_paths_from_images(path):
+def _get_paths_from_images(path: List[str]) -> List[str]:
     """get image path list from image folder"""
     assert os.path.isdir(path), "{:s} is not a valid directory".format(path)
     images = []
@@ -50,7 +50,7 @@ def _get_paths_from_images(path):
     return images
 
 
-def _get_paths_from_lmdb(dataroot):
+def _get_paths_from_lmdb(dataroot: str) -> Tuple[List[str], List[int]]:
     """get image path list from lmdb meta info"""
     meta_info = pickle.load(open(os.path.join(dataroot, "meta_info.pkl"), "rb"))
     paths = meta_info["keys"]
@@ -60,7 +60,7 @@ def _get_paths_from_lmdb(dataroot):
     return paths, sizes
 
 
-def get_image_paths(data_type, dataroot):
+def get_image_paths(data_type: str, dataroot: str) -> Tuple[List[str], List[int]]:
     """get image path list
     support lmdb or image files"""
     paths, sizes = None, None
@@ -76,7 +76,7 @@ def get_image_paths(data_type, dataroot):
     return paths, sizes
 
 
-def glob_file_list(root):
+def glob_file_list(root: str) -> List[str]:
     return sorted(glob.glob(os.path.join(root, "*")))
 
 
@@ -157,9 +157,7 @@ def read_img_seq(path, size=None):
         import ipdb
 
         ipdb.set_trace()
-    imgs = torch.from_numpy(
-        np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))
-    ).float()
+    imgs = jt.array(np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))).float32()
     return imgs
 
 
@@ -186,9 +184,7 @@ def read_img_seq2(path, size=None):
         import ipdb
 
         ipdb.set_trace()
-    imgs = torch.from_numpy(
-        np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))
-    ).float()
+    imgs = jt.array(np.ascontiguousarray(np.transpose(imgs, (0, 3, 1, 2)))).float32()
     return imgs
 
 
@@ -392,7 +388,7 @@ def bgr2ycbcr(img, only_y=True):
     return rlt.astype(in_img_type)
 
 
-def ycbcr2rgb(img):
+def ycbcr2rgb(img: np.ndarray):
     """same as matlab ycbcr2rgb
     Input:
         uint8, [0, 255]
@@ -418,7 +414,7 @@ def ycbcr2rgb(img):
     return rlt.astype(in_img_type)
 
 
-def modcrop(img_in, scale):
+def modcrop(img_in: np.ndarray, scale: int) -> np.ndarray:
     """img_in: Numpy, HWC or HW"""
     img = np.copy(img_in)
     if img.ndim == 2:

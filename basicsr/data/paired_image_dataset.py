@@ -1,5 +1,15 @@
-from torch.utils import data as data
-from torchvision.transforms.functional import normalize
+import os
+import cv2
+import random
+import numpy as np
+import jittor as jt
+import jittor.transform as TF
+
+from os import path as osp
+from typing import Dict, Any
+
+from jittor.dataset import Dataset
+
 
 from basicsr.data.data_util import (
     paired_paths_from_folder,
@@ -25,18 +35,10 @@ from basicsr.utils import (
     scandir,
 )
 
-import random
-import numpy as np
-import torch
-import cv2
-
-import os
-from os import path as osp
-
 # from scandir import scandir
 
 
-class Dataset_PairedImage_dehazeSOT(data.Dataset):
+class Dataset_PairedImage_dehazeSOT(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -65,7 +67,7 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
             phase (str): 'train' or 'val'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt: Dict[str, Any]):
         super(Dataset_PairedImage_dehazeSOT, self).__init__()
         self.opt = opt
         # file client (io backend)
@@ -117,9 +119,8 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
                         # print('train gt',gt_path)
                         input_path = os.path.join(lq, line.strip())
                         # print('train input',input_path)
-                        paths.append(
-                            dict([(f"lq_path", input_path), (f"gt_path", gt_path)])
-                        )
+                        paths.append({"lq_path": input_path, "gt_path": gt_path})
+
             else:
                 gt_dir = basename + "/outdoor/gt"
                 lq = basename + "/outdoor/hazy"
@@ -131,19 +132,14 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
                         # print('valid gt',gt_path)
                         input_path = os.path.join(lq, line.strip())
                         # print('valid input',input_path)
-                        paths.append(
-                            dict([(f"lq_path", input_path), (f"gt_path", gt_path)])
-                        )
+                        paths.append({"lq_path": input_path, "gt_path": gt_path})
+
             self.paths = paths
-            # self.paths = [
-            #     osp.join(self.gt_folder,
-            #              line.split(' ')[0]) for line in fin
-            # ]
 
         if self.opt["phase"] == "train":
             self.geometric_augs = opt["geometric_augs"]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         if self.file_client is None:
             self.file_client = FileClient(
                 self.io_backend_opt.pop("type"), **self.io_backend_opt
@@ -157,14 +153,14 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lq_path = self.paths[index]["lq_path"]
         img_bytes = self.file_client.get(lq_path, "lq")
         try:
             img_lq = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lq path {} not working".format(lq_path))
 
         # augmentation for training
@@ -193,8 +189,8 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
         img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lq = TF.image_normalize(img_lq, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lq_path, "gt_path": gt_path}
 
@@ -202,7 +198,7 @@ class Dataset_PairedImage_dehazeSOT(data.Dataset):
         return len(self.paths)
 
 
-class Dataset_PairedImage_denseHaze(data.Dataset):
+class Dataset_PairedImage_denseHaze(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -231,7 +227,7 @@ class Dataset_PairedImage_denseHaze(data.Dataset):
             phase (str): 'train' or 'val'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt: Dict[str, Any]):
         super(Dataset_PairedImage_denseHaze, self).__init__()
         self.opt = opt
         # file client (io backend)
@@ -281,14 +277,14 @@ class Dataset_PairedImage_denseHaze(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lq_path = self.paths[index]["lq_path"]
         img_bytes = self.file_client.get(lq_path, "lq")
         try:
             img_lq = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lq path {} not working".format(lq_path))
 
         # augmentation for training
@@ -314,8 +310,8 @@ class Dataset_PairedImage_denseHaze(data.Dataset):
         img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lq = TF.image_normalize(img_lq, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lq_path, "gt_path": gt_path}
 
@@ -323,7 +319,7 @@ class Dataset_PairedImage_denseHaze(data.Dataset):
         return len(self.paths)
 
 
-class Dataset_PairedImage(data.Dataset):
+class Dataset_PairedImage(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -352,7 +348,7 @@ class Dataset_PairedImage(data.Dataset):
             phase (str): 'train' or 'val'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt: Dict[str, Any]):
         super(Dataset_PairedImage, self).__init__()
         self.opt = opt
         # file client (io backend)
@@ -402,14 +398,14 @@ class Dataset_PairedImage(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lq_path = self.paths[index]["lq_path"]
         img_bytes = self.file_client.get(lq_path, "lq")
         try:
             img_lq = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lq path {} not working".format(lq_path))
 
         # augmentation for training
@@ -429,8 +425,8 @@ class Dataset_PairedImage(data.Dataset):
         img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lq = TF.image_normalize(img_lq, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lq_path, "gt_path": gt_path}
 
@@ -438,7 +434,7 @@ class Dataset_PairedImage(data.Dataset):
         return len(self.paths)
 
 
-class Dataset_PairedImage_derainSpad(data.Dataset):
+class Dataset_PairedImage_derainSpad(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -511,12 +507,8 @@ class Dataset_PairedImage_derainSpad(data.Dataset):
                 for line in fin:
                     gt_path = os.path.join(basename, line.split(" ")[1][1:-1])
                     input_path = os.path.join(basename, line.split(" ")[0][1:])
-                    paths.append(dict([(f"lq_path", input_path), (f"gt_path", gt_path)]))
+                    paths.append({"lq_path": input_path, "gt_path": gt_path})
             self.paths = paths
-            # self.paths = [
-            #     osp.join(self.gt_folder,
-            #              line.split(' ')[0]) for line in fin
-            # ]
 
         if self.opt["phase"] == "train":
             self.geometric_augs = opt["geometric_augs"]
@@ -535,14 +527,14 @@ class Dataset_PairedImage_derainSpad(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lq_path = self.paths[index]["lq_path"]
         img_bytes = self.file_client.get(lq_path, "lq")
         try:
             img_lq = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lq path {} not working".format(lq_path))
 
         # augmentation for training
@@ -571,8 +563,8 @@ class Dataset_PairedImage_derainSpad(data.Dataset):
         img_gt, img_lq = img2tensor([img_gt, img_lq], bgr2rgb=True, float32=True)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lq = TF.image_normalize(img_lq, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lq_path, "gt_path": gt_path}
 
@@ -580,7 +572,7 @@ class Dataset_PairedImage_derainSpad(data.Dataset):
         return len(self.paths)
 
 
-class Dataset_GaussianDenoising(data.Dataset):
+class Dataset_GaussianDenoising(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -608,7 +600,7 @@ class Dataset_GaussianDenoising(data.Dataset):
             phase (str): 'train' or 'val'.
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt: Dict[str, Any]):
         super(Dataset_GaussianDenoising, self).__init__()
         self.opt = opt
 
@@ -665,14 +657,14 @@ class Dataset_GaussianDenoising(data.Dataset):
         if self.in_ch == 3:
             try:
                 img_gt = imfrombytes(img_bytes, float32=True)
-            except:
+            except Exception:
                 raise Exception("gt path {} not working".format(gt_path))
 
             img_gt = cv2.cvtColor(img_gt, cv2.COLOR_BGR2RGB)
         else:
             try:
                 img_gt = imfrombytes(img_bytes, flag="grayscale", float32=True)
-            except:
+            except Exception:
                 raise Exception("gt path {} not working".format(gt_path))
 
             img_gt = np.expand_dims(img_gt, axis=2)
@@ -708,10 +700,12 @@ class Dataset_GaussianDenoising(data.Dataset):
             elif degrade_type == 2:
                 sigma_value = 50
 
-            noise_level = torch.FloatTensor([sigma_value]) / 255.0
+            noise_level = jt.array([sigma_value]).float32() / 255.0
+            # noise_level = torch.FloatTensor([sigma_value]) / 255.0
             # noise_level_map = torch.ones((1, img_lq.size(1), img_lq.size(2))).mul_(noise_level).float()
-            noise = torch.randn(img_lq.size()).mul_(noise_level).float()
-            img_lq.add_(noise)
+            noise = jt.randn(img_lq.shape).multiply(noise_level).float32()
+            # noise = torch.randn(img_lq.size()).mul_(noise_level).float()
+            img_lq = img_lq.add(noise)
 
         else:
             # change here to update center
@@ -730,8 +724,8 @@ class Dataset_GaussianDenoising(data.Dataset):
         return len(self.paths)
 
 
-class Dataset_DefocusDeblur_DualPixel_16bit(data.Dataset):
-    def __init__(self, opt):
+class Dataset_DefocusDeblur_DualPixel_16bit(Dataset):
+    def __init__(self, opt: Dict[str, Any]):
         super(Dataset_DefocusDeblur_DualPixel_16bit, self).__init__()
         self.opt = opt
         # file client (io backend)
@@ -773,21 +767,21 @@ class Dataset_DefocusDeblur_DualPixel_16bit(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytesDP(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lqL_path = self.paths[index]["lqL_path"]
         img_bytes = self.file_client.get(lqL_path, "lqL")
         try:
             img_lqL = imfrombytesDP(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lqL path {} not working".format(lqL_path))
 
         lqR_path = self.paths[index]["lqR_path"]
         img_bytes = self.file_client.get(lqR_path, "lqR")
         try:
             img_lqR = imfrombytesDP(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lqR path {} not working".format(lqR_path))
 
         # augmentation for training
@@ -811,11 +805,11 @@ class Dataset_DefocusDeblur_DualPixel_16bit(data.Dataset):
         )
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lqL, self.mean, self.std, inplace=True)
-            normalize(img_lqR, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lqL = TF.image_normalize(img_lqL, self.mean, self.std)
+            img_lqR = TF.image_normalize(img_lqR, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
-        img_lq = torch.cat([img_lqL, img_lqR], 0)
+        img_lq = jt.concat([img_lqL, img_lqR], 0)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lqL_path, "gt_path": gt_path}
 
@@ -823,10 +817,7 @@ class Dataset_DefocusDeblur_DualPixel_16bit(data.Dataset):
         return len(self.paths)
 
 
-import torchvision.transforms.functional as TF
-
-
-class PairedImageDataset(data.Dataset):
+class PairedImageDataset(Dataset):
     """Paired image dataset for image restoration.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc) and
@@ -905,7 +896,7 @@ class PairedImageDataset(data.Dataset):
         img_bytes = self.file_client.get(gt_path, "gt")
         try:
             img_gt = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("gt path {} not working".format(gt_path))
 
         lq_path = self.paths[index]["lq_path"]
@@ -913,7 +904,7 @@ class PairedImageDataset(data.Dataset):
         img_bytes = self.file_client.get(lq_path, "lq")
         try:
             img_lq = imfrombytes(img_bytes, float32=True)
-        except:
+        except Exception:
             raise Exception("lq path {} not working".format(lq_path))
 
         # augmentation for training
@@ -945,8 +936,8 @@ class PairedImageDataset(data.Dataset):
             img_gt = TF.adjust_saturation(img_gt, sat_factor)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
-            normalize(img_gt, self.mean, self.std, inplace=True)
+            img_lq = TF.image_normalize(img_lq, self.mean, self.std)
+            img_gt = TF.image_normalize(img_gt, self.mean, self.std)
 
         return {"lq": img_lq, "gt": img_gt, "lq_path": lq_path, "gt_path": gt_path}
 

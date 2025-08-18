@@ -1,9 +1,10 @@
 import os.path as osp
-import torch.utils.data as data
 import basicsr.data.util as util
 
+from jittor.dataset import Dataset
 
-class Dataset_SDSDImage(data.Dataset):
+
+class Dataset_SDSDImage(Dataset):
     def __init__(self, opt):
         super(Dataset_SDSDImage, self).__init__()
         self.opt = opt
@@ -45,8 +46,8 @@ class Dataset_SDSDImage(data.Dataset):
                 if subfolder_name.split("_2")[0] in testing_dir:
                     continue
             else:  # val test
-                if not (subfolder_name in testing_dir) and not (
-                    subfolder_name.split("_2")[0] in testing_dir
+                if (subfolder_name not in testing_dir) and (
+                    subfolder_name.split("_2")[0] not in testing_dir
                 ):
                     continue
 

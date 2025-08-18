@@ -1,14 +1,15 @@
+import random
 import importlib
 import numpy as np
-import random
-import torch
-import torch.utils.data
-from functools import partial
-from os import path as osp
 
-from basicsr.data.prefetch_dataloader import PrefetchDataLoader
+from jittor.dataset import DataLoader, Dataset, Sampler
+
+from os import path as osp
+from typing import Dict, Any
+
 from basicsr.utils import get_root_logger, scandir
 from basicsr.utils.dist_util import get_dist_info
+from basicsr.data.prefetch_dataloader import PrefetchDataLoader
 
 __all__ = ["create_dataset", "create_dataloader"]
 
@@ -55,7 +56,12 @@ def create_dataset(dataset_opt):
 
 
 def create_dataloader(
-    dataset, dataset_opt, num_gpu=1, dist=False, sampler=None, seed=None
+    dataset: Dataset,
+    dataset_opt: Dict[str, Any],
+    num_gpu: int = 1,
+    dist: bool = False,
+    sampler: Sampler = None,
+    seed: int = None,
 ):
     """Create dataloader.
 
@@ -73,7 +79,7 @@ def create_dataloader(
         seed (int | None): Seed. Default: None
     """
     phase = dataset_opt["phase"]
-    rank, _ = get_dist_info()
+    _, _ = get_dist_info()
     if phase == "train":
         if dist:  # distributed training
             batch_size = dataset_opt["batch_size_per_gpu"]
@@ -92,11 +98,11 @@ def create_dataloader(
         )
         if sampler is None:
             dataloader_args["shuffle"] = True
-        dataloader_args["worker_init_fn"] = (
-            partial(worker_init_fn, num_workers=num_workers, rank=rank, seed=seed)
-            if seed is not None
-            else None
-        )
+        # dataloader_args["worker_init_fn"] = (
+        #     partial(worker_init_fn, num_workers=num_workers, rank=rank, seed=seed)
+        #     if seed is not None
+        #     else None
+        # )
     elif phase in ["val", "test"]:  # validation
         dataloader_args = dict(
             dataset=dataset, batch_size=1, shuffle=False, num_workers=0
@@ -106,7 +112,7 @@ def create_dataloader(
             f"Wrong dataset phase: {phase}. Supported ones are 'train', 'val' and 'test'."
         )
 
-    dataloader_args["pin_memory"] = dataset_opt.get("pin_memory", False)
+    # dataloader_args["pin_memory"] = dataset_opt.get("pin_memory", False)
 
     prefetch_mode = dataset_opt.get("prefetch_mode")
     if prefetch_mode == "cpu":  # CPUPrefetcher
@@ -122,7 +128,7 @@ def create_dataloader(
     else:
         # prefetch_mode=None: Normal dataloader
         # prefetch_mode='cuda': dataloader for CUDAPrefetcher
-        return torch.utils.data.DataLoader(**dataloader_args)
+        return DataLoader(**dataloader_args)
 
 
 def worker_init_fn(worker_id, num_workers, rank, seed):

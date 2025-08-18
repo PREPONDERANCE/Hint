@@ -1,10 +1,13 @@
 import cv2
 import random
 import numpy as np
-from PIL import Image
+
+from typing import List, Union, Tuple
+
+ListOrSingle = Union[List[np.ndarray], np.ndarray]
 
 
-def mod_crop(img, scale):
+def mod_crop(img: np.ndarray, scale: int) -> np.ndarray:
     """Mod crop images, used during testing.
 
     Args:
@@ -24,7 +27,13 @@ def mod_crop(img, scale):
     return img
 
 
-def paired_random_crop(img_gts, img_lqs, lq_patch_size, scale, gt_path):
+def paired_random_crop(
+    img_gts: ListOrSingle,
+    img_lqs: ListOrSingle,
+    lq_patch_size: int,
+    scale: int,
+    gt_path: str,
+) -> Tuple[ListOrSingle, ListOrSingle]:
     """Paired random crop.
 
     It crops lists of lq and gt images with corresponding locations.
@@ -88,7 +97,13 @@ def paired_random_crop(img_gts, img_lqs, lq_patch_size, scale, gt_path):
     return img_gts, img_lqs
 
 
-def paired_center_crop(img_gts, img_lqs, lq_patch_size, scale, gt_path):
+def paired_center_crop(
+    img_gts: ListOrSingle,
+    img_lqs: ListOrSingle,
+    lq_patch_size: int,
+    scale: int,
+    gt_path: str,
+) -> Tuple[ListOrSingle, ListOrSingle]:
     """Paired random crop.
 
     It crops lists of lq and gt images with corresponding locations.
@@ -152,7 +167,14 @@ def paired_center_crop(img_gts, img_lqs, lq_patch_size, scale, gt_path):
     return img_gts, img_lqs
 
 
-def paired_random_crop_DP(img_lqLs, img_lqRs, img_gts, gt_patch_size, scale, gt_path):
+def paired_random_crop_DP(
+    img_lqLs: ListOrSingle,
+    img_lqRs: ListOrSingle,
+    img_gts: ListOrSingle,
+    gt_patch_size: int,
+    scale: int,
+    gt_path: str,
+) -> Tuple[ListOrSingle, ListOrSingle, ListOrSingle]:
     if not isinstance(img_gts, list):
         img_gts = [img_gts]
     if not isinstance(img_lqLs, list):
@@ -204,7 +226,17 @@ def paired_random_crop_DP(img_lqLs, img_lqRs, img_gts, gt_patch_size, scale, gt_
     return img_lqLs, img_lqRs, img_gts
 
 
-def augment(imgs, hflip=True, rotation=True, flows=None, return_status=False):
+def augment(
+    imgs: ListOrSingle,
+    hflip: bool = True,
+    rotation: bool = True,
+    flows: List[np.ndarray] = None,
+    return_status: bool = False,
+) -> Union[
+    ListOrSingle,
+    Tuple[ListOrSingle, ListOrSingle],
+    Tuple[ListOrSingle, Tuple[bool, bool, bool]],
+]:
     """Augment: horizontal flips OR rotate (0, 90, 180, 270 degrees).
 
     We use vertical flip and transpose for rotation implementation.
@@ -271,7 +303,12 @@ def augment(imgs, hflip=True, rotation=True, flows=None, return_status=False):
             return imgs
 
 
-def img_rotate(img, angle, center=None, scale=1.0):
+def img_rotate(
+    img: np.ndarray,
+    angle: float,
+    center: Tuple[int, ...] = None,
+    scale: float = 1.0,
+) -> np.ndarray:
     """Rotate image.
 
     Args:
@@ -292,7 +329,7 @@ def img_rotate(img, angle, center=None, scale=1.0):
     return rotated_img
 
 
-def data_augmentation(image, mode):
+def data_augmentation(image: np.ndarray, mode: int) -> np.ndarray:
     """
     Performs data augmentation of the input image
     Input:
@@ -346,146 +383,3 @@ def random_augmentation(*args):
     for data in args:
         out.append(data_augmentation(data, flag_aug).copy())
     return out
-
-
-# def paired_random_crop_tip18(img_gts, img_lqs, lq_patch_size, scale, gt_path):
-#     """Paired random crop.
-
-#     It crops lists of lq and gt images with corresponding locations.
-
-#     Args:
-#         img_gts (list[ndarray] | ndarray): GT images. Note that all images
-#             should have the same shape. If the input is an ndarray, it will
-#             be transformed to a list containing itself.
-#         img_lqs (list[ndarray] | ndarray): LQ images. Note that all images
-#             should have the same shape. If the input is an ndarray, it will
-#             be transformed to a list containing itself.
-#         lq_patch_size (int): LQ patch size.
-#         scale (int): Scale factor.
-#         gt_path (str): Path to ground-truth.
-
-#     Returns:
-#         list[ndarray] | ndarray: GT images and LQ images. If returned results
-#             only have one element, just return ndarray.
-#     """
-
-#     if not isinstance(img_gts, list):
-#         img_gts = [img_gts]
-#     if not isinstance(img_lqs, list):
-#         img_lqs = [img_lqs]
-
-#     h_lq, w_lq, _ = img_lqs[0].shape
-#     h_gt, w_gt, _ = img_gts[0].shape
-#     gt_patch_size = int(lq_patch_size * scale)
-
-#     if h_gt != h_lq * scale or w_gt != w_lq * scale:
-#         raise ValueError(
-#             f'Scale mismatches. GT ({h_gt}, {w_gt}) is not {scale}x ',
-#             f'multiplication of LQ ({h_lq}, {w_lq}).')
-#     if h_lq < lq_patch_size or w_lq < lq_patch_size:
-#         raise ValueError(f'LQ ({h_lq}, {w_lq}) is smaller than patch size '
-#                          f'({lq_patch_size}, {lq_patch_size}). '
-#                          f'Please remove {gt_path}.')
-
-#     #pre process
-#     # w, h = img.size
-#     # region = img.crop((1 + int(0.15 * w), 1 + int(0.15 * h), int(0.85 * w), int(0.85 * h)))
-#     # region = region.resize((286, 286), Image.BILINEAR)
-#     # crop lq patch
-#     w = w_lq,h =h_lq
-#     img_lqs = [
-#         # v[(1 + int(0.15 * h)):int(0.85 * h), (1 + int(0.15 * w)):int(0.85 * w), ...]
-#         for v in img_lqs:
-#             # v[(1 + int(0.15 * h)):int(0.85 * h), (1 + int(0.15 * w)):int(0.85 * w), ...]
-#             img = Image.fromarray(v[(1 + int(0.15 * h)):int(0.85 * h), (1 + int(0.15 * w)):int(0.85 * w), ...])
-#             img = img.resize((286, 286), Image.BILINEAR)
-
-#     ]
-#     img_gts = [
-#         v[(1 + int(0.15 * h)):int(0.85 * h), (1 + int(0.15 * w)):int(0.85 * w), ...]
-#         for v in img_gts
-#     ]
-
-
-#     # randomly choose top and left coordinates for lq patch
-#     top = random.randint(0, h_lq - lq_patch_size)
-#     left = random.randint(0, w_lq - lq_patch_size)
-
-#     # crop lq patch
-#     img_lqs = [
-#         v[top:top + lq_patch_size, left:left + lq_patch_size, ...]
-#         for v in img_lqs
-#     ]
-
-#     # crop corresponding gt patch
-#     top_gt, left_gt = int(top * scale), int(left * scale)
-#     img_gts = [
-#         v[top_gt:top_gt + gt_patch_size, left_gt:left_gt + gt_patch_size, ...]
-#         for v in img_gts
-#     ]
-#     if len(img_gts) == 1:
-#         img_gts = img_gts[0]
-#     if len(img_lqs) == 1:
-#         img_lqs = img_lqs[0]
-#     return img_gts, img_lqs
-
-# def paired_center_crop_tip18(img_gts, img_lqs, lq_patch_size, scale, gt_path):
-#     """Paired random crop.
-
-#     It crops lists of lq and gt images with corresponding locations.
-
-#     Args:
-#         img_gts (list[ndarray] | ndarray): GT images. Note that all images
-#             should have the same shape. If the input is an ndarray, it will
-#             be transformed to a list containing itself.
-#         img_lqs (list[ndarray] | ndarray): LQ images. Note that all images
-#             should have the same shape. If the input is an ndarray, it will
-#             be transformed to a list containing itself.
-#         lq_patch_size (int): LQ patch size.
-#         scale (int): Scale factor.
-#         gt_path (str): Path to ground-truth.
-
-#     Returns:
-#         list[ndarray] | ndarray: GT images and LQ images. If returned results
-#             only have one element, just return ndarray.
-#     """
-
-#     if not isinstance(img_gts, list):
-#         img_gts = [img_gts]
-#     if not isinstance(img_lqs, list):
-#         img_lqs = [img_lqs]
-
-#     h_lq, w_lq, _ = img_lqs[0].shape
-#     h_gt, w_gt, _ = img_gts[0].shape
-#     gt_patch_size = int(lq_patch_size * scale)
-
-#     if h_gt != h_lq * scale or w_gt != w_lq * scale:
-#         raise ValueError(
-#             f'Scale mismatches. GT ({h_gt}, {w_gt}) is not {scale}x ',
-#             f'multiplication of LQ ({h_lq}, {w_lq}).')
-#     if h_lq < lq_patch_size or w_lq < lq_patch_size:
-#         raise ValueError(f'LQ ({h_lq}, {w_lq}) is smaller than patch size '
-#                          f'({lq_patch_size}, {lq_patch_size}). '
-#                          f'Please remove {gt_path}.')
-
-#     # randomly choose top and left coordinates for lq patch
-#     top = (h_lq - lq_patch_size)//2#random.randint(0, h_lq - lq_patch_size)
-#     left = (w_lq - lq_patch_size)//2#random.randint(0, w_lq - lq_patch_size)
-
-#     # crop lq patch
-#     img_lqs = [
-#         v[top:top + lq_patch_size, left:left + lq_patch_size, ...]
-#         for v in img_lqs
-#     ]
-
-#     # crop corresponding gt patch
-#     top_gt, left_gt = int(top * scale), int(left * scale)
-#     img_gts = [
-#         v[top_gt:top_gt + gt_patch_size, left_gt:left_gt + gt_patch_size, ...]
-#         for v in img_gts
-#     ]
-#     if len(img_gts) == 1:
-#         img_gts = img_gts[0]
-#     if len(img_lqs) == 1:
-#         img_lqs = img_lqs[0]
-#     return img_gts, img_lqs

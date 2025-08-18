@@ -1,12 +1,12 @@
 from os import path as osp
-from torch.utils import data as data
-from torchvision.transforms.functional import normalize
+from jittor.dataset import Dataset
+from jittor.transform import image_normalize
 
 from basicsr.data.data_util import paths_from_lmdb
 from basicsr.utils import FileClient, imfrombytes, img2tensor, scandir
 
 
-class SingleImageDataset(data.Dataset):
+class SingleImageDataset(Dataset):
     """Read only lq images in the test phase.
 
     Read LQ (Low Quality, e.g. LR (Low Resolution), blurry, noisy, etc).
@@ -60,7 +60,7 @@ class SingleImageDataset(data.Dataset):
         img_lq = img2tensor(img_lq, bgr2rgb=True, float32=True)
         # normalize
         if self.mean is not None or self.std is not None:
-            normalize(img_lq, self.mean, self.std, inplace=True)
+            img_lq = image_normalize(img_lq, self.mean, self.std)
         return {"lq": img_lq, "lq_path": lq_path}
 
     def __len__(self):

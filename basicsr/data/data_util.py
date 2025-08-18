@@ -1,16 +1,22 @@
 import cv2
-
-cv2.setNumThreads(1)
 import numpy as np
-import torch
+import jittor as jt
+from jittor import nn
+
 from os import path as osp
-from torch.nn import functional as F
+from typing import List, Union
 
 from basicsr.data.transforms import mod_crop
 from basicsr.utils import img2tensor, scandir
 
+cv2.setNumThreads(1)
 
-def read_img_seq(path, require_mod_crop=False, scale=1):
+
+def read_img_seq(
+    path: Union[List[str], str],
+    require_mod_crop: bool = False,
+    scale: int = 1,
+) -> jt.Var:
     """Read a sequence of images from a given folder path.
 
     Args:
@@ -30,11 +36,16 @@ def read_img_seq(path, require_mod_crop=False, scale=1):
     if require_mod_crop:
         imgs = [mod_crop(img, scale) for img in imgs]
     imgs = img2tensor(imgs, bgr2rgb=True, float32=True)
-    imgs = torch.stack(imgs, dim=0)
+    imgs = jt.stack(imgs, dim=0)
     return imgs
 
 
-def generate_frame_indices(crt_idx, max_frame_num, num_frames, padding="reflection"):
+def generate_frame_indices(
+    crt_idx: int,
+    max_frame_num: int,
+    num_frames: int,
+    padding: str = "reflection",
+) -> List[int]:
     """Generate an index list for reading `num_frames` frames from a sequence
     of images.
 
@@ -88,7 +99,7 @@ def generate_frame_indices(crt_idx, max_frame_num, num_frames, padding="reflecti
     return indices
 
 
-def paired_paths_from_lmdb(folders, keys):
+def paired_paths_from_lmdb(folders: List[str], keys: List[str]) -> List[str]:
     """Generate paired paths from lmdb files.
 
     Contents of lmdb. Taking the `lq.lmdb` for example, the file structure is:
@@ -155,7 +166,12 @@ def paired_paths_from_lmdb(folders, keys):
         return paths
 
 
-def paired_paths_from_meta_info_file(folders, keys, meta_info_file, filename_tmpl):
+def paired_paths_from_meta_info_file(
+    folders: List[str],
+    keys: List[str],
+    meta_info_file: str,
+    filename_tmpl: str,
+) -> List[str]:
     """Generate paired paths from an meta information file.
 
     Each line in the meta information file contains the image names and
@@ -205,7 +221,9 @@ def paired_paths_from_meta_info_file(folders, keys, meta_info_file, filename_tmp
     return paths
 
 
-def paired_paths_from_folder(folders, keys, filename_tmpl):
+def paired_paths_from_folder(
+    folders: List[str], keys: List[str], filename_tmpl: str
+) -> List[str]:
     """Generate paired paths from folders.
 
     Args:
@@ -239,9 +257,9 @@ def paired_paths_from_folder(folders, keys, filename_tmpl):
     paths = []
     for idx in range(len(gt_paths)):
         gt_path = gt_paths[idx]
-        basename, ext = osp.splitext(osp.basename(gt_path))
+        basename, _ = osp.splitext(osp.basename(gt_path))
         input_path = input_paths[idx]
-        basename_input, ext_input = osp.splitext(osp.basename(input_path))
+        _, ext_input = osp.splitext(osp.basename(input_path))
         input_name = f"{filename_tmpl.format(basename)}{ext_input}"
         input_path = osp.join(input_folder, input_name)
         assert input_name in input_paths, f"{input_name} is not in {input_key}_paths."
@@ -252,7 +270,9 @@ def paired_paths_from_folder(folders, keys, filename_tmpl):
     return paths
 
 
-def paired_DP_paths_from_folder(folders, keys, filename_tmpl):
+def paired_DP_paths_from_folder(
+    folders: List[str], keys: List[str], filename_tmpl: str
+) -> List[str]:
     """Generate paired paths from folders.
 
     Args:
@@ -288,14 +308,14 @@ def paired_DP_paths_from_folder(folders, keys, filename_tmpl):
     paths = []
     for idx in range(len(gt_paths)):
         gt_path = gt_paths[idx]
-        basename, ext = osp.splitext(osp.basename(gt_path))
+        basename, _ = osp.splitext(osp.basename(gt_path))
         inputL_path = inputL_paths[idx]
-        basename_input, ext_input = osp.splitext(osp.basename(inputL_path))
+        _, ext_input = osp.splitext(osp.basename(inputL_path))
         inputL_name = f"{filename_tmpl.format(basename)}{ext_input}"
         inputL_path = osp.join(inputL_folder, inputL_name)
         assert inputL_name in inputL_paths, f"{inputL_name} is not in {inputL_key}_paths."
         inputR_path = inputR_paths[idx]
-        basename_input, ext_input = osp.splitext(osp.basename(inputR_path))
+        _, ext_input = osp.splitext(osp.basename(inputR_path))
         inputR_name = f"{filename_tmpl.format(basename)}{ext_input}"
         inputR_path = osp.join(inputR_folder, inputR_name)
         assert inputR_name in inputR_paths, f"{inputR_name} is not in {inputR_key}_paths."
@@ -312,7 +332,7 @@ def paired_DP_paths_from_folder(folders, keys, filename_tmpl):
     return paths
 
 
-def paths_from_folder(folder):
+def paths_from_folder(folder: str) -> List[str]:
     """Generate paths from folder.
 
     Args:
@@ -327,7 +347,7 @@ def paths_from_folder(folder):
     return paths
 
 
-def paths_from_lmdb(folder):
+def paths_from_lmdb(folder: str) -> List[str]:
     """Generate paths from lmdb.
 
     Args:
@@ -343,7 +363,7 @@ def paths_from_lmdb(folder):
     return paths
 
 
-def generate_gaussian_kernel(kernel_size=13, sigma=1.6):
+def generate_gaussian_kernel(kernel_size: int = 13, sigma: float = 1.6) -> np.ndarray:
     """Generate Gaussian kernel used in `duf_downsample`.
 
     Args:
@@ -362,7 +382,7 @@ def generate_gaussian_kernel(kernel_size=13, sigma=1.6):
     return filters.gaussian_filter(kernel, sigma)
 
 
-def duf_downsample(x, kernel_size=13, scale=4):
+def duf_downsample(x: jt.Var, kernel_size: int = 13, scale: int = 4) -> jt.Var:
     """Downsamping with Gaussian kernel used in the DUF official code.
 
     Args:
@@ -380,18 +400,16 @@ def duf_downsample(x, kernel_size=13, scale=4):
     if x.ndim == 4:
         squeeze_flag = True
         x = x.unsqueeze(0)
-    b, t, c, h, w = x.size()
-    x = x.view(-1, 1, h, w)
+    b, t, c, h, w = x.shape
+    x = x.reshape(-1, 1, h, w)
     pad_w, pad_h = kernel_size // 2 + scale * 2, kernel_size // 2 + scale * 2
-    x = F.pad(x, (pad_w, pad_w, pad_h, pad_h), "reflect")
+    x = nn.pad(x, (pad_w, pad_w, pad_h, pad_h), "reflect")
 
     gaussian_filter = generate_gaussian_kernel(kernel_size, 0.4 * scale)
-    gaussian_filter = (
-        torch.from_numpy(gaussian_filter).type_as(x).unsqueeze(0).unsqueeze(0)
-    )
-    x = F.conv2d(x, gaussian_filter, stride=scale)
+    gaussian_filter = jt.array(gaussian_filter, dtype=x.dtype).unsqueeze(0).unsqueeze(0)
+    x = nn.conv2d(x, gaussian_filter, stride=scale)
     x = x[:, :, 2:-2, 2:-2]
-    x = x.view(b, t, c, x.size(2), x.size(3))
+    x = x.reshape(b, t, c, x.shape[2], x.shape[3])
     if squeeze_flag:
         x = x.squeeze(0)
     return x

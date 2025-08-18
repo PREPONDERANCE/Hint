@@ -1,7 +1,6 @@
-import queue as Queue
 import threading
-import torch
-from torch.utils.data import DataLoader
+import jittor as jt
+import queue as Queue
 
 
 class PrefetchGenerator(threading.Thread):
@@ -37,7 +36,7 @@ class PrefetchGenerator(threading.Thread):
         return self
 
 
-class PrefetchDataLoader(DataLoader):
+class PrefetchDataLoader:
     """Prefetch version of dataloader.
 
     Ref:
@@ -82,46 +81,63 @@ class CPUPrefetcher:
 
 
 class CUDAPrefetcher:
-    """CUDA prefetcher.
-
-    Ref:
-    https://github.com/NVIDIA/apex/issues/304#
-
-    It may consums more GPU memory.
+    """Jittor prefetcher (no CUDA streams; same API as your PyTorch version).
 
     Args:
-        loader: Dataloader.
-        opt (dict): Options.
+        loader: an iterable dataloader
+        opt (dict): expects opt["num_gpu"] (>=1 -> use cuda)
     """
 
     def __init__(self, loader, opt):
         self.ori_loader = loader
         self.loader = iter(loader)
         self.opt = opt
-        self.stream = torch.cuda.Stream()
-        self.device = torch.device("cuda" if opt["num_gpu"] != 0 else "cpu")
-        self.preload()
 
-    def preload(self):
+        # Jittor uses global flags to select device
+        use_cuda = bool(opt.get("num_gpu", 0)) and jt.has_cuda
+        if use_cuda:
+            jt.flags.use_cuda = 1
+            self.device = "cuda"
+        else:
+            self.device = "cpu"
+
+        self._preload()
+
+    # -------- internals --------
+    def _to_var(self, x):
+        # If it's already a jt.Var, return it; otherwise try to convert (numpy/list/number)
+        if isinstance(x, jt.Var):
+            return x
         try:
-            self.batch = next(self.loader)  # self.batch is a dict
+            return jt.array(x)
+        except Exception:
+            # leave non-array types (e.g., strings, dicts with metadata) untouched
+            return x
+
+    def _move_batch_to_device(self, batch):
+        # Support dict / list / tuple / single tensor
+        if isinstance(batch, dict):
+            return {k: self._to_var(v) for k, v in batch.items()}
+        elif isinstance(batch, (list, tuple)):
+            t = type(batch)
+            return t(self._to_var(v) for v in batch)
+        else:
+            return self._to_var(batch)
+
+    def _preload(self):
+        try:
+            b = next(self.loader)  # may be dict/list/tuple
         except StopIteration:
             self.batch = None
-            return None
-        # put tensors to gpu
-        with torch.cuda.stream(self.stream):
-            for k, v in self.batch.items():
-                if torch.is_tensor(v):
-                    self.batch[k] = self.batch[k].to(
-                        device=self.device, non_blocking=True
-                    )
+            return
+        self.batch = self._move_batch_to_device(b)
 
+    # -------- public API (same as your original) --------
     def next(self):
-        torch.cuda.current_stream().wait_stream(self.stream)
         batch = self.batch
-        self.preload()
+        self._preload()
         return batch
 
     def reset(self):
         self.loader = iter(self.ori_loader)
-        self.preload()
+        self._preload()

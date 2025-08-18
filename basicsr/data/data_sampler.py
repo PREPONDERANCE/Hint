@@ -1,6 +1,6 @@
 import math
-import torch
-from torch.utils.data.sampler import Sampler
+import jittor as jt
+from jittor.dataset import Sampler
 
 
 class EnlargedSampler(Sampler):
@@ -28,9 +28,9 @@ class EnlargedSampler(Sampler):
 
     def __iter__(self):
         # deterministically shuffle based on epoch
-        g = torch.Generator()
-        g.manual_seed(self.epoch)
-        indices = torch.randperm(self.total_size, generator=g).tolist()
+        jt.set_global_seed(self.epoch)
+        indices = jt.randperm(self.total_size)  # Var of shape [total_size], int32
+        indices = jt.tolist(indices)
 
         dataset_size = len(self.dataset)
         indices = [v % dataset_size for v in indices]

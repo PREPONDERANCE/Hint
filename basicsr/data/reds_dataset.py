@@ -1,15 +1,16 @@
-import numpy as np
 import random
-import torch
+import numpy as np
+import jittor as jt
+
 from pathlib import Path
-from torch.utils import data as data
+from jittor.dataset import Dataset
 
 from basicsr.data.transforms import augment, paired_random_crop
 from basicsr.utils import FileClient, get_root_logger, imfrombytes, img2tensor
 from basicsr.utils.flow_util import dequantize_flow
 
 
-class REDSDataset(data.Dataset):
+class REDSDataset(Dataset):
     """REDS dataset for training.
 
     The keys are generated from a meta info txt file.
@@ -217,14 +218,14 @@ class REDSDataset(data.Dataset):
             img_results = augment(img_lqs, self.opt["use_flip"], self.opt["use_rot"])
 
         img_results = img2tensor(img_results)
-        img_lqs = torch.stack(img_results[0:-1], dim=0)
+        img_lqs = jt.stack(img_results[0:-1], dim=0)
         img_gt = img_results[-1]
 
         if self.flow_root is not None:
             img_flows = img2tensor(img_flows)
             # add the zero center flow
-            img_flows.insert(self.num_half_frames, torch.zeros_like(img_flows[0]))
-            img_flows = torch.stack(img_flows, dim=0)
+            img_flows.insert(self.num_half_frames, jt.zeros_like(img_flows[0]))
+            img_flows = jt.stack(img_flows, dim=0)
 
         # img_lqs: (t, c, h, w)
         # img_flows: (t, 2, h, w)

@@ -1,13 +1,14 @@
 import random
-import torch
+import jittor as jt
+
 from pathlib import Path
-from torch.utils import data as data
+from jittor.dataset import Dataset
 
 from basicsr.data.transforms import augment, paired_random_crop
 from basicsr.utils import FileClient, get_root_logger, imfrombytes, img2tensor
 
 
-class Vimeo90KDataset(data.Dataset):
+class Vimeo90KDataset(Dataset):
     """Vimeo90K dataset for training.
 
     The keys are generated from a meta info txt file.
@@ -25,10 +26,10 @@ class Vimeo90KDataset(data.Dataset):
 
     The neighboring frame list for different num_frame:
     num_frame | frame list
-             1 | 4
-             3 | 3,4,5
-             5 | 2,3,4,5,6
-             7 | 1,2,3,4,5,6,7
+            1 | 4
+            3 | 3,4,5
+            5 | 2,3,4,5,6
+            7 | 1,2,3,4,5,6,7
 
     Args:
         opt (dict): Config for train dataset. It contains the following keys:
@@ -116,7 +117,7 @@ class Vimeo90KDataset(data.Dataset):
         img_results = augment(img_lqs, self.opt["use_flip"], self.opt["use_rot"])
 
         img_results = img2tensor(img_results)
-        img_lqs = torch.stack(img_results[0:-1], dim=0)
+        img_lqs = jt.stack(img_results[0:-1], dim=0)
         img_gt = img_results[-1]
 
         # img_lqs: (t, c, h, w)

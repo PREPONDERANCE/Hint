@@ -1,13 +1,13 @@
 import glob
-import torch
+import jittor as jt
 from os import path as osp
-from torch.utils import data as data
+from jittor.dataset import Dataset
 
 from basicsr.data.data_util import duf_downsample, generate_frame_indices, read_img_seq
 from basicsr.utils import get_root_logger, scandir
 
 
-class VideoTestDataset(data.Dataset):
+class VideoTestDataset(Dataset):
     """Video test dataset.
 
     Supported datasets: Vid4, REDS4, REDSofficial.
@@ -118,7 +118,9 @@ class VideoTestDataset(data.Dataset):
         )
 
         if self.cache_data:
-            imgs_lq = self.imgs_lq[folder].index_select(0, torch.LongTensor(select_idx))
+            imgs_lq = self.imgs_lq[folder].index_select(
+                0, jt.array(select_idx, dtype=jt.int64)
+            )
             img_gt = self.imgs_gt[folder][idx]
         else:
             img_paths_lq = [self.imgs_lq[folder][i] for i in select_idx]
@@ -139,7 +141,7 @@ class VideoTestDataset(data.Dataset):
         return len(self.data_info["gt_path"])
 
 
-class VideoTestVimeo90KDataset(data.Dataset):
+class VideoTestVimeo90KDataset(Dataset):
     """Video test dataset for Vimeo90k-Test dataset.
 
     It only keeps the center frame for testing.
@@ -247,12 +249,12 @@ class VideoTestDUFDataset(VideoTestDataset):
             if self.opt["use_duf_downsampling"]:
                 # read imgs_gt to generate low-resolution frames
                 imgs_lq = self.imgs_gt[folder].index_select(
-                    0, torch.LongTensor(select_idx)
+                    0, jt.array(select_idx, dtype=jt.int64)
                 )
                 imgs_lq = duf_downsample(imgs_lq, kernel_size=13, scale=self.opt["scale"])
             else:
                 imgs_lq = self.imgs_lq[folder].index_select(
-                    0, torch.LongTensor(select_idx)
+                    0, jt.array(select_idx, dtype=jt.int64)
                 )
             img_gt = self.imgs_gt[folder][idx]
         else:

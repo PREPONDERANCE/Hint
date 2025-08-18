@@ -1,12 +1,14 @@
+import jittor.transform as T
+from jittor.dataset import Dataset
+
 from os import path as osp
-from torch.utils import data as data
-from torchvision.transforms.functional import normalize
+from typing import Dict, Any
 
 from basicsr.data.transforms import augment
 from basicsr.utils import FileClient, imfrombytes, img2tensor
 
 
-class FFHQDataset(data.Dataset):
+class FFHQDataset(Dataset):
     """FFHQ dataset for StyleGAN.
 
     Args:
@@ -19,7 +21,7 @@ class FFHQDataset(data.Dataset):
 
     """
 
-    def __init__(self, opt):
+    def __init__(self, opt: Dict[str, Any]):
         super(FFHQDataset, self).__init__()
         self.opt = opt
         # file client (io backend)
@@ -43,7 +45,7 @@ class FFHQDataset(data.Dataset):
             # FFHQ has 70000 images in total
             self.paths = [osp.join(self.gt_folder, f"{v:08d}.png") for v in range(70000)]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         if self.file_client is None:
             self.file_client = FileClient(
                 self.io_backend_opt.pop("type"), **self.io_backend_opt
@@ -59,7 +61,7 @@ class FFHQDataset(data.Dataset):
         # BGR to RGB, HWC to CHW, numpy to tensor
         img_gt = img2tensor(img_gt, bgr2rgb=True, float32=True)
         # normalize
-        normalize(img_gt, self.mean, self.std, inplace=True)
+        img_gt = T.image_normalize(img_gt, self.mean, self.std)
         return {"gt": img_gt, "gt_path": gt_path}
 
     def __len__(self):
