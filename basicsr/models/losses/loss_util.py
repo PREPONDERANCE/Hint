@@ -1,8 +1,10 @@
 import functools
-from torch.nn import functional as F
+import jittor as jt
+
+from typing import Callable
 
 
-def reduce_loss(loss, reduction):
+def reduce_loss(loss: jt.Var, reduction: str):
     """Reduce loss as specified.
 
     Args:
@@ -12,17 +14,17 @@ def reduce_loss(loss, reduction):
     Returns:
         Tensor: Reduced loss tensor.
     """
-    reduction_enum = F._Reduction.get_enum(reduction)
-    # none: 0, elementwise_mean:1, sum: 2
-    if reduction_enum == 0:
+    if reduction == "none":
         return loss
-    elif reduction_enum == 1:
+    elif reduction == "mean":
         return loss.mean()
-    else:
+    elif reduction == "sum":
         return loss.sum()
+    else:
+        raise ValueError(f"Invalid reduction mode: {reduction}")
 
 
-def weight_reduce_loss(loss, weight=None, reduction="mean"):
+def weight_reduce_loss(loss: jt.Var, weight: jt.Var = None, reduction: str = "mean"):
     """Apply element-wise weight and reduce loss.
 
     Args:
@@ -36,8 +38,8 @@ def weight_reduce_loss(loss, weight=None, reduction="mean"):
     """
     # if weight is specified, apply element-wise weight
     if weight is not None:
-        assert weight.dim() == loss.dim()
-        assert weight.size(1) == 1 or weight.size(1) == loss.size(1)
+        assert weight.ndim == loss.ndim
+        assert weight.shape[1] == 1 or weight.shape[1] == loss.shape[1]
         loss = loss * weight
 
     # if weight is not specified or reduction is sum, just reduce the loss
@@ -48,13 +50,13 @@ def weight_reduce_loss(loss, weight=None, reduction="mean"):
         if weight.size(1) > 1:
             weight = weight.sum()
         else:
-            weight = weight.sum() * loss.size(1)
+            weight = weight.sum() * loss.shape[1]
         loss = loss.sum() / weight
 
     return loss
 
 
-def weighted_loss(loss_func):
+def weighted_loss(loss_func: Callable):
     """Create a weighted version of a given loss function.
 
     To use this decorator, the loss function must have the signature like
