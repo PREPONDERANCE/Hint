@@ -104,7 +104,7 @@ class BiasFree_LayerNorm(nn.Module):
         normalized_shape = jt.size(normalized_shape)
         assert len(normalized_shape) == 1
 
-        self.weight = nn.Parameter(jt.ones(normalized_shape))
+        self.weight = jt.ones(normalized_shape)
         self.normalized_shape = normalized_shape
 
     def execute(self, x: jt.Var) -> jt.Var:
@@ -122,8 +122,8 @@ class WithBias_LayerNorm(nn.Module):
 
         assert len(normalized_shape) == 1
 
-        self.weight = nn.Parameter(jt.ones(normalized_shape))
-        self.bias = nn.Parameter(jt.zeros(normalized_shape))
+        self.weight = jt.ones(normalized_shape)
+        self.bias = jt.zeros(normalized_shape)
         self.normalized_shape = normalized_shape
 
     def execute(self, x: jt.Var) -> jt.Var:
@@ -196,7 +196,7 @@ class Inter_CacheModulation(nn.Module):
             out_channels=2 * in_c,
             kernel_size=1,
         )
-        self.gatingConv = nn.Conv1d(
+        self.gating_conv = nn.Conv1d(
             in_channels=in_c,
             out_channels=in_c,
             kernel_size=1,
@@ -206,7 +206,7 @@ class Inter_CacheModulation(nn.Module):
         x2_pW = self.conv_width(self.align(x2) + x1)
         scale, shift = jt.chunk(x2_pW, 2, dim=1)
         x1_p = x1 * scale + shift
-        x1_p = x1_p * nn.gelu(self.gatingConv(x1_p))
+        x1_p = x1_p * nn.gelu(self.gating_conv(x1_p))
         return x1_p
 
 
@@ -216,14 +216,14 @@ class Intra_CacheModulation(nn.Module):
 
         self.down = nn.Conv1d(embed_dim, embed_dim // 2, kernel_size=1)
         self.up = nn.Conv1d(embed_dim // 2, embed_dim, kernel_size=1)
-        self.gatingConv = nn.Conv1d(
+        self.gating_conv = nn.Conv1d(
             in_channels=embed_dim,
             out_channels=embed_dim,
             kernel_size=1,
         )
 
     def execute(self, x1: jt.Var, x2: jt.Var):
-        x_gated = nn.gelu(self.gatingConv(x2 + x1)) * (x2 + x1)
+        x_gated = nn.gelu(self.gating_conv(x2 + x1)) * (x2 + x1)
         x_p = self.up(self.down(x_gated))
         return x_p
 
@@ -301,7 +301,7 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
 
         self.num_heads = num_heads
-        self.temperature = nn.Parameter(jt.ones(4, 1, 1))
+        self.temperature = jt.ones(4, 1, 1)
 
         self.qkv = nn.Conv(dim, dim * 3, kernel_size=1, bias=bias)
         self.qkv_dwconv = nn.Conv(
