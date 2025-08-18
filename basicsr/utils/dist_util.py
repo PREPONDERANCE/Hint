@@ -1,74 +1,81 @@
-# Modified from https://github.com/open-mmlab/mmcv/blob/master/mmcv/runner/dist_utils.py  # noqa: E501
-import functools
+# jittor_dist_utils.py
+# Modified from your PyTorch version to Jittor (MPI-based)
+
 import os
+import functools
 import subprocess
-import torch
-import torch.distributed as dist
-import torch.multiprocessing as mp
+import multiprocessing as mp
+
+import jittor as jt
+# Jittor 的分布式接口以 MPI 为核心（自动检测 mpirun/srun 环境）
+# 常用标志：
+#   jt.in_mpi     -> 是否处于分布式环境
+#   jt.rank       -> 当前进程 rank（单卡为 0）
+#   jt.world_size -> 进程总数（单卡为 1）
+# 常用装饰器 / 工具：
+#   @jt.single_process_scope() 让包裹代码在单进程上执行
+#   Var.mpi_all_reduce("sum"/"mean") 等操作用于全局统计
 
 
 def init_dist(launcher, backend="nccl", **kwargs):
+    """
+    Initialize distributed env for Jittor.
+    """
     if mp.get_start_method(allow_none=True) is None:
         mp.set_start_method("spawn")
+
     if launcher == "pytorch":
-        _init_dist_pytorch(backend, **kwargs)
+        _init_dist_env_from_env(**kwargs)
     elif launcher == "slurm":
-        _init_dist_slurm(backend, **kwargs)
+        _init_dist_slurm(**kwargs)
     else:
         raise ValueError(f"Invalid launcher type: {launcher}")
 
-
-def _init_dist_pytorch(backend, **kwargs):
-    rank = int(os.environ["RANK"])
-    num_gpus = torch.cuda.device_count()
-    torch.cuda.set_device(rank % num_gpus)
-    dist.init_process_group(backend=backend, **kwargs)
+    try:
+        jt.flags.use_cuda = 1
+    except Exception:
+        pass
 
 
-def _init_dist_slurm(backend, port=None):
-    """Initialize slurm distributed training environment.
+def _init_dist_env_from_env(**kwargs):
+    os.environ.setdefault("RANK", "0")
+    os.environ.setdefault("WORLD_SIZE", "1")
+    os.environ.setdefault("LOCAL_RANK", "0")
 
-    If argument ``port`` is not specified, then the master port will be system
-    environment variable ``MASTER_PORT``. If ``MASTER_PORT`` is not in system
-    environment variable, then a default port ``29500`` will be used.
+    port = kwargs.get("port", None)
+    if port is not None:
+        os.environ["MASTER_PORT"] = str(port)
+    os.environ.setdefault("MASTER_PORT", "29500")
+    os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
 
-    Args:
-        backend (str): Backend of torch.distributed.
-        port (int, optional): Master port. Defaults to None.
-    """
+
+def _init_dist_slurm(port=None):
     proc_id = int(os.environ["SLURM_PROCID"])
     ntasks = int(os.environ["SLURM_NTASKS"])
     node_list = os.environ["SLURM_NODELIST"]
-    num_gpus = torch.cuda.device_count()
-    torch.cuda.set_device(proc_id % num_gpus)
-    addr = subprocess.getoutput(f"scontrol show hostname {node_list} | head -n1")
-    # specify master port
+
+    addr = subprocess.getoutput(f"scontrol show hostname {node_list} | head -n1").strip()
+
+    # MASTER_PORT
     if port is not None:
         os.environ["MASTER_PORT"] = str(port)
-    elif "MASTER_PORT" in os.environ:
-        pass  # use MASTER_PORT in the environment variable
     else:
-        # 29500 is torch.distributed default port
-        os.environ["MASTER_PORT"] = "29500"
+        os.environ.setdefault("MASTER_PORT", "29500")
+
     os.environ["MASTER_ADDR"] = addr
     os.environ["WORLD_SIZE"] = str(ntasks)
-    os.environ["LOCAL_RANK"] = str(proc_id % num_gpus)
     os.environ["RANK"] = str(proc_id)
-    dist.init_process_group(backend=backend)
+
+    os.environ.setdefault("LOCAL_RANK", str(proc_id))
 
 
 def get_dist_info():
-    if dist.is_available():
-        initialized = dist.is_initialized()
-    else:
-        initialized = False
-    if initialized:
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-    else:
-        rank = 0
-        world_size = 1
-    return rank, world_size
+    try:
+        if getattr(jt, "in_mpi", False):
+            return int(jt.rank), int(jt.world_size)
+    except Exception:
+        pass
+    return 0, 1
 
 
 def master_only(func):

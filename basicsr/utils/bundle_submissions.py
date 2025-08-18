@@ -5,10 +5,9 @@
 # Please see the file LICENSE.txt for the license governing this code.
 
 
+import os
 import numpy as np
 import scipy.io as sio
-import os
-import h5py
 
 
 def bundle_submissions_raw(submission_folder, session):
@@ -25,7 +24,7 @@ def bundle_submissions_raw(submission_folder, session):
     # out_folder = os.path.join(submission_folder, "bundled/")
     try:
         os.mkdir(out_folder)
-    except:
+    except Exception:
         pass
 
     israw = True
@@ -58,7 +57,7 @@ def bundle_submissions_srgb(submission_folder, session):
     # out_folder = os.path.join(submission_folder, "bundled/")
     try:
         os.mkdir(out_folder)
-    except:
+    except Exception:
         pass
     israw = False
     eval_version = "1.0"
@@ -90,7 +89,7 @@ def bundle_submissions_srgb_v1(submission_folder, session):
     # out_folder = os.path.join(submission_folder, "bundled/")
     try:
         os.mkdir(out_folder)
-    except:
+    except Exception:
         pass
     israw = False
     eval_version = "1.0"

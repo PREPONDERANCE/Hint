@@ -1,12 +1,72 @@
+import os
 import cv2
 import math
 import numpy as np
-import os
-import torch
-from torchvision.utils import make_grid
+import jittor as jt
+
+from math import ceil
+from typing import List, Union, Type, Tuple
 
 
-def img2tensor(imgs, bgr2rgb=True, float32=True):
+@jt.no_grad()
+def make_grid(
+    tensor: jt.Var,
+    nrow: int = 8,
+    padding: int = 2,
+    normalize: bool = False,
+    value_range: Tuple[int, int] = None,
+    pad_value: float = 0.0,
+) -> jt.Var:
+    # ---- to numpy in CHW/NCHW ----
+    arr = tensor.numpy()
+
+    if arr.ndim == 2:  # (H, W) -> (1, 1, H, W)
+        arr = arr[None, None, ...]
+    elif arr.ndim == 3:  # (C, H, W) -> (1, C, H, W)
+        arr = arr[None, ...]
+    elif arr.ndim != 4:  # (N, C, H, W)
+        raise ValueError("Expected 2D/3D/4D input (H W / C H W / N C H W).")
+
+    N, C, H, W = arr.shape
+    arr = arr.astype(np.float32, copy=False)
+
+    # ---- normalize (optional, normalization) ----
+    if normalize:
+        if value_range is None:
+            vmin, vmax = float(arr.min()), float(arr.max())
+        else:
+            vmin, vmax = value_range
+        eps = 1e-7
+        arr = (arr - vmin) / max(vmax - vmin, eps)
+
+    # ---- grid layout ----
+    xmaps = min(nrow, N)  # numbers per row
+    ymaps = int(ceil(N / xmaps))  # total lines
+    gh = ymaps * H + padding * (ymaps + 1)
+    gw = xmaps * W + padding * (xmaps + 1)
+
+    grid = np.full((C, gh, gw), pad_value, dtype=np.float32)
+
+    k = 0
+    y = padding
+    for _ in range(ymaps):
+        x = padding
+        for _ in range(xmaps):
+            if k >= N:
+                break
+            grid[:, y : y + H, x : x + W] = arr[k]
+            x += W + padding
+            k += 1
+        y += H + padding
+
+    return jt.array(grid)
+
+
+def img2tensor(
+    imgs: Union[List[np.ndarray], np.ndarray],
+    bgr2rgb: bool = True,
+    float32: bool = True,
+) -> Union[List[jt.Var], jt.Var]:
     """Numpy array to tensor.
 
     Args:
@@ -19,12 +79,12 @@ def img2tensor(imgs, bgr2rgb=True, float32=True):
             one element, just return tensor.
     """
 
-    def _totensor(img, bgr2rgb, float32):
+    def _totensor(img: np.ndarray, bgr2rgb: bool, float32: bool):
         if img.shape[2] == 3 and bgr2rgb:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = torch.from_numpy(img.transpose(2, 0, 1))
+        img: jt.Var = jt.array(img.transpose(2, 0, 1))
         if float32:
-            img = img.float()
+            img = img.float32()
         return img
 
     if isinstance(imgs, list):
@@ -33,7 +93,12 @@ def img2tensor(imgs, bgr2rgb=True, float32=True):
         return _totensor(imgs, bgr2rgb, float32)
 
 
-def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
+def tensor2img(
+    tensor: jt.Var,
+    rgb2bgr: bool = True,
+    out_type: Type = np.uint8,
+    min_max: Tuple[int, int] = (0, 1),
+) -> np.ndarray:
     """Convert torch Tensors into image numpy arrays.
 
     After clamping to [min, max], values will be normalized to [0, 1].
@@ -54,21 +119,25 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
         (Tensor or list): 3D ndarray of shape (H x W x C) OR 2D ndarray of
         shape (H x W). The channel order is BGR.
     """
+
     if not (
-        torch.is_tensor(tensor)
-        or (isinstance(tensor, list) and all(torch.is_tensor(t) for t in tensor))
+        jt.is_var(tensor)
+        or (isinstance(tensor, list) and all(jt.is_var(t) for t in tensor))
     ):
         raise TypeError(f"tensor or list of tensors expected, got {type(tensor)}")
 
-    if torch.is_tensor(tensor):
+    if jt.is_var(tensor):
         tensor = [tensor]
+
     result = []
     for _tensor in tensor:
-        _tensor = _tensor.squeeze(0).float().detach().cpu().clamp_(*min_max)
+        _tensor = _tensor.squeeze(0).float32().detach().clamp(*min_max)
         _tensor = (_tensor - min_max[0]) / (min_max[1] - min_max[0])
 
-        n_dim = _tensor.dim()
+        _tensor: jt.Var
+        n_dim = _tensor.ndim
         if n_dim == 4:
+            # Fix from here
             img_np = make_grid(
                 _tensor, nrow=int(math.sqrt(_tensor.size(0))), normalize=False
             ).numpy()
@@ -99,7 +168,11 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
     return result
 
 
-def imfrombytes(content, flag="color", float32=False):
+def imfrombytes(
+    content: bytes,
+    flag: str = "color",
+    float32: bool = False,
+) -> np.ndarray:
     """Read an image from bytes.
 
     Args:
@@ -126,7 +199,11 @@ def imfrombytes(content, flag="color", float32=False):
     return img
 
 
-def imfrombytesDP(content, flag="color", float32=False):
+def imfrombytesDP(
+    content: bytes,
+    flag: str = "color",
+    float32: bool = False,
+) -> np.ndarray:
     """Read an image from bytes.
 
     Args:
@@ -148,7 +225,7 @@ def imfrombytesDP(content, flag="color", float32=False):
     return img
 
 
-def padding(img_lq, img_gt, gt_size):
+def padding(img_lq: np.ndarray, img_gt: np.ndarray, gt_size: int):
     h, w, _ = img_lq.shape
 
     h_pad = max(0, gt_size - h)
@@ -167,7 +244,12 @@ def padding(img_lq, img_gt, gt_size):
     return img_lq, img_gt
 
 
-def padding_DP(img_lqL, img_lqR, img_gt, gt_size):
+def padding_DP(
+    img_lqL: np.ndarray,
+    img_lqR: np.ndarray,
+    img_gt: np.ndarray,
+    gt_size: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     h, w, _ = img_gt.shape
 
     h_pad = max(0, gt_size - h)
@@ -183,7 +265,12 @@ def padding_DP(img_lqL, img_lqR, img_gt, gt_size):
     return img_lqL, img_lqR, img_gt
 
 
-def imwrite(img, file_path, params=None, auto_mkdir=True):
+def imwrite(
+    img: np.ndarray,
+    file_path: str,
+    params: List[int] = None,
+    auto_mkdir: bool = True,
+) -> bool:
     """Write image to file.
 
     Args:
@@ -202,7 +289,10 @@ def imwrite(img, file_path, params=None, auto_mkdir=True):
     return cv2.imwrite(file_path, img, params)
 
 
-def crop_border(imgs, crop_border):
+def crop_border(
+    imgs: Union[List[np.ndarray], np.ndarray],
+    crop_border: int,
+) -> List[np.ndarray]:
     """Crop borders of images.
 
     Args:

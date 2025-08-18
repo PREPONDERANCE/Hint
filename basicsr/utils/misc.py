@@ -1,8 +1,9 @@
-import numpy as np
 import os
-import random
 import time
-import torch
+import random
+import numpy as np
+import jittor as jt
+
 from os import path as osp
 
 from .dist_util import master_only
@@ -13,9 +14,7 @@ def set_random_seed(seed):
     """Set random seeds."""
     random.seed(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    jt.set_global_seed(seed, False)
 
 
 def get_time_str():

@@ -81,7 +81,7 @@ class MessageLogger:
 
 @master_only
 def init_tb_logger(log_dir):
-    from torch.utils.tensorboard import SummaryWriter
+    from tensorboardX import SummaryWriter
 
     tb_logger = SummaryWriter(log_dir=log_dir)
     return tb_logger
@@ -163,8 +163,7 @@ def get_env_info():
 
     Currently, only log the software version.
     """
-    import torch
-    import torchvision
+    import jittor
 
     from basicsr.version import __version__
 
@@ -183,7 +182,6 @@ def get_env_info():
     msg += (
         "\nVersion Information: "
         f"\n\tBasicSR: {__version__}"
-        f"\n\tPyTorch: {torch.__version__}"
-        f"\n\tTorchVision: {torchvision.__version__}"
+        f"\n\tJittor: {jittor.__version__}"
     )
     return msg

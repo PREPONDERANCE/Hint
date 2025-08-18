@@ -1,7 +1,7 @@
+import os
 import cv2
 import numpy as np
-import os
-import torch
+import jittor as jt
 from skimage import transform as trans
 
 from basicsr.utils import imwrite
@@ -164,7 +164,7 @@ class FaceRestorationHelper(object):
             if save_inverse_affine_path is not None:
                 path, _ = os.path.splitext(save_inverse_affine_path)
                 save_path = f"{path}_{idx:02d}.pth"
-                torch.save(inverse_affine, save_path)
+                jt.save(inverse_affine, save_path)
 
     def add_restored_face(self, face):
         self.restored_faces.append(face)

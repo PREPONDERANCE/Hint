@@ -22,7 +22,6 @@ from .misc import (
     make_exp_dirs,
     mkdir_and_rename,
     scandir,
-    scandir_SIDD,
     set_random_seed,
     sizeof_fmt,
 )

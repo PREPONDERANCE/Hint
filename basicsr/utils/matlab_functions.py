@@ -1,20 +1,42 @@
 import math
 import numpy as np
-import torch
+import jittor as jt
+
+from typing import Any, Type
 
 
-def cubic(x):
+# Util
+def narrow(x: jt.Var, dim: int, start: int, length: int) -> jt.Var:
+    nd = x.ndim
+    if dim < 0:
+        dim += nd
+    assert 0 <= dim < nd, "dim out of range"
+    assert 0 <= start < x.shape[dim], "start out of range"
+    assert length >= 0 and start + length <= x.shape[dim], "length out of range"
+
+    idx = [slice(None)] * nd
+    idx[dim] = slice(start, start + length)
+    return x[tuple(idx)]
+
+
+def cubic(x: jt.Var):
     """cubic function used for calculate_weights_indices."""
-    absx = torch.abs(x)
+    absx = jt.abs(x)
     absx2 = absx**2
     absx3 = absx**3
+
     return (1.5 * absx3 - 2.5 * absx2 + 1) * ((absx <= 1).type_as(absx)) + (
         -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2
     ) * (((absx > 1) * (absx <= 2)).type_as(absx))
 
 
 def calculate_weights_indices(
-    in_length, out_length, scale, kernel, kernel_width, antialiasing
+    in_length: int,
+    out_length: int,
+    scale: float,
+    kernel: Any,
+    kernel_width: int,
+    antialiasing: bool,
 ):
     """Calculate weights and indices, used for imresize function.
 
@@ -32,15 +54,15 @@ def calculate_weights_indices(
         kernel_width = kernel_width / scale
 
     # Output-space coordinates
-    x = torch.linspace(1, out_length, out_length)
+    x = jt.linspace(1, out_length, out_length)
 
     # Input-space coordinates. Calculate the inverse mapping such that 0.5
     # in output space maps to 0.5 in input space, and 0.5 + scale in output
     # space maps to 1.5 in input space.
-    u = x / scale + 0.5 * (1 - 1 / scale)
+    u: jt.Var = x / scale + 0.5 * (1 - 1 / scale)
 
     # What is the left-most pixel that can be involved in the computation?
-    left = torch.floor(u - kernel_width / 2)
+    left = jt.floor(u - kernel_width / 2)
 
     # What is the maximum number of pixels that can be involved in the
     # computation?  Note: it's OK to use an extra pixel here; if the
@@ -50,13 +72,13 @@ def calculate_weights_indices(
 
     # The indices of the input pixels involved in computing the k-th output
     # pixel are in row k of the indices matrix.
-    indices = left.view(out_length, 1).expand(out_length, p) + torch.linspace(
+    indices: jt.Var = left.view(out_length, 1).expand(out_length, p) + jt.linspace(
         0, p - 1, p
-    ).view(1, p).expand(out_length, p)
+    ).reshape(1, p).expand(out_length, p)
 
     # The weights used to compute the k-th output pixel are in row k of the
     # weights matrix.
-    distance_to_center = u.view(out_length, 1).expand(out_length, p) - indices
+    distance_to_center = u.reshape(out_length, 1).expand(out_length, p) - indices
 
     # apply cubic kernel
     if (scale < 1) and antialiasing:
@@ -65,27 +87,31 @@ def calculate_weights_indices(
         weights = cubic(distance_to_center)
 
     # Normalize the weights matrix so that each row sums to 1.
-    weights_sum = torch.sum(weights, 1).view(out_length, 1)
+    weights_sum = jt.sum(weights, 1).view(out_length, 1)
     weights = weights / weights_sum.expand(out_length, p)
 
     # If a column in weights is all zero, get rid of it. only consider the
     # first and last column.
-    weights_zero_tmp = torch.sum((weights == 0), 0)
+    weights_zero_tmp = jt.sum((weights == 0), 0)
     if not math.isclose(weights_zero_tmp[0], 0, rel_tol=1e-6):
-        indices = indices.narrow(1, 1, p - 2)
-        weights = weights.narrow(1, 1, p - 2)
+        indices = narrow(indices, 1, 1, p - 2)
+        weights = narrow(weights, 1, 1, p - 2)
     if not math.isclose(weights_zero_tmp[-1], 0, rel_tol=1e-6):
-        indices = indices.narrow(1, 0, p - 2)
-        weights = weights.narrow(1, 0, p - 2)
-    weights = weights.contiguous()
-    indices = indices.contiguous()
+        indices = narrow(indices, 1, 0, p - 2)
+        weights = narrow(weights, 1, 0, p - 2)
+
+    # In jittor, tensors are kept contiguous
+    weights = jt.contiguous(weights)
+    indices = jt.contiguous(indices)
+
     sym_len_s = -indices.min() + 1
     sym_len_e = indices.max() - in_length
     indices = indices + sym_len_s - 1
+
     return weights, indices, int(sym_len_s), int(sym_len_e)
 
 
-@torch.no_grad()
+@jt.no_grad()
 def imresize(img, scale, antialiasing=True):
     """imresize function same as MATLAB.
 
@@ -106,7 +132,7 @@ def imresize(img, scale, antialiasing=True):
     """
     if type(img).__module__ == np.__name__:  # numpy type
         numpy_type = True
-        img = torch.from_numpy(img.transpose(2, 0, 1)).float()
+        img = jt.array(img.transpose(2, 0, 1)).float()
     else:
         numpy_type = False
 
@@ -124,56 +150,61 @@ def imresize(img, scale, antialiasing=True):
     )
     # process H dimension
     # symmetric copying
-    img_aug = torch.FloatTensor(in_c, in_h + sym_len_hs + sym_len_he, in_w)
-    img_aug.narrow(1, sym_len_hs, in_h).copy_(img)
+    img_aug = jt.empty(in_c, in_h + sym_len_hs + sym_len_he, in_w)
+    img_aug[:, sym_len_hs : sym_len_hs + in_h, :] = img
 
-    sym_patch = img[:, :sym_len_hs, :]
-    inv_idx = torch.arange(sym_patch.size(1) - 1, -1, -1).long()
+    sym_patch: jt.Var = img[:, :sym_len_hs, :]
+    inv_idx = jt.arange(sym_patch.shape[1] - 1, -1, -1).int64()
     sym_patch_inv = sym_patch.index_select(1, inv_idx)
-    img_aug.narrow(1, 0, sym_len_hs).copy_(sym_patch_inv)
+    img_aug[:, 0:sym_len_hs] = sym_patch_inv
 
     sym_patch = img[:, -sym_len_he:, :]
-    inv_idx = torch.arange(sym_patch.size(1) - 1, -1, -1).long()
+    inv_idx = jt.arange(sym_patch.shape[1] - 1, -1, -1).int64()
     sym_patch_inv = sym_patch.index_select(1, inv_idx)
-    img_aug.narrow(1, sym_len_hs + in_h, sym_len_he).copy_(sym_patch_inv)
+    img_aug[:, sym_len_hs + in_h : sym_len_hs + in_h + sym_len_he] = sym_patch_inv
 
-    out_1 = torch.FloatTensor(in_c, out_h, in_w)
-    kernel_width = weights_h.size(1)
+    out_1 = jt.empty(in_c, out_h, in_w)
+    kernel_width = weights_h.shape[1]
     for i in range(out_h):
         idx = int(indices_h[i][0])
         for j in range(in_c):
             out_1[j, i, :] = (
-                img_aug[j, idx : idx + kernel_width, :].transpose(0, 1).mv(weights_h[i])
+                img_aug[j, idx : idx + kernel_width, :]
+                .transpose(0, 1)
+                .matmul(weights_h[i])
             )
 
     # process W dimension
     # symmetric copying
-    out_1_aug = torch.FloatTensor(in_c, out_h, in_w + sym_len_ws + sym_len_we)
+    out_1_aug = jt.empty(in_c, out_h, in_w + sym_len_ws + sym_len_we)
+    out_1_aug[:, :, sym_len_ws : sym_len_ws + in_w, :] = out_1
     out_1_aug.narrow(2, sym_len_ws, in_w).copy_(out_1)
 
     sym_patch = out_1[:, :, :sym_len_ws]
-    inv_idx = torch.arange(sym_patch.size(2) - 1, -1, -1).long()
+    inv_idx = jt.arange(sym_patch.shape[2] - 1, -1, -1).int64()
     sym_patch_inv = sym_patch.index_select(2, inv_idx)
-    out_1_aug.narrow(2, 0, sym_len_ws).copy_(sym_patch_inv)
+    out_1_aug[:, :, 0:sym_len_ws, :] = sym_patch_inv
 
     sym_patch = out_1[:, :, -sym_len_we:]
-    inv_idx = torch.arange(sym_patch.size(2) - 1, -1, -1).long()
+    inv_idx = jt.arange(sym_patch.shape[2] - 1, -1, -1).int64()
     sym_patch_inv = sym_patch.index_select(2, inv_idx)
-    out_1_aug.narrow(2, sym_len_ws + in_w, sym_len_we).copy_(sym_patch_inv)
+    out_1_aug[:, :, sym_len_ws + in_w : sym_len_ws + in_w + sym_len_we] = sym_patch_inv
 
-    out_2 = torch.FloatTensor(in_c, out_h, out_w)
-    kernel_width = weights_w.size(1)
+    out_2: jt.Var = jt.empty(in_c, out_h, out_w)
+    kernel_width = weights_w.shape[1]
     for i in range(out_w):
         idx = int(indices_w[i][0])
         for j in range(in_c):
-            out_2[j, :, i] = out_1_aug[j, :, idx : idx + kernel_width].mv(weights_w[i])
+            out_2[j, :, i] = out_1_aug[j, :, idx : idx + kernel_width].matmul(
+                weights_w[i]
+            )
 
     if numpy_type:
         out_2 = out_2.numpy().transpose(1, 2, 0)
     return out_2
 
 
-def rgb2ycbcr(img, y_only=False):
+def rgb2ycbcr(img: np.ndarray, y_only: bool = False) -> np.ndarray:
     """Convert a RGB image to YCbCr image.
 
     This function produces the same results as Matlab's `rgb2ycbcr` function.
@@ -212,7 +243,7 @@ def rgb2ycbcr(img, y_only=False):
     return out_img
 
 
-def bgr2ycbcr(img, y_only=False):
+def bgr2ycbcr(img: np.ndarray, y_only: bool = False) -> np.ndarray:
     """Convert a BGR image to YCbCr image.
 
     The bgr version of rgb2ycbcr.
@@ -251,7 +282,7 @@ def bgr2ycbcr(img, y_only=False):
     return out_img
 
 
-def ycbcr2rgb(img):
+def ycbcr2rgb(img: np.ndarray) -> np.ndarray:
     """Convert a YCbCr image to RGB image.
 
     This function produces the same results as Matlab's ycbcr2rgb function.
@@ -286,7 +317,7 @@ def ycbcr2rgb(img):
     return out_img
 
 
-def ycbcr2bgr(img):
+def ycbcr2bgr(img: np.ndarray) -> np.ndarray:
     """Convert a YCbCr image to BGR image.
 
     The bgr version of ycbcr2rgb.
@@ -321,7 +352,7 @@ def ycbcr2bgr(img):
     return out_img
 
 
-def _convert_input_type_range(img):
+def _convert_input_type_range(img: np.ndarray) -> np.ndarray:
     """Convert the type and range of the input image.
 
     It converts the input image to np.float32 type and range of [0, 1].
@@ -350,7 +381,7 @@ def _convert_input_type_range(img):
     return img
 
 
-def _convert_output_type_range(img, dst_type):
+def _convert_output_type_range(img: np.ndarray, dst_type: Type) -> np.ndarray:
     """Convert the type and range of the image according to dst_type.
 
     It converts the image to desired type and range. If `dst_type` is np.uint8,
