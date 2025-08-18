@@ -1,12 +1,20 @@
 import cv2
 import numpy as np
+import jittor as jt
+from jittor import nn
+
+from typing import Union
 
 from basicsr.metrics.metric_util import reorder_image, to_y_channel
-import skimage.metrics
-import torch
 
 
-def calculate_psnr(img1, img2, crop_border, input_order="HWC", test_y_channel=False):
+def calculate_psnr(
+    img1: Union[np.ndarray, jt.Var],
+    img2: Union[np.ndarray, jt.Var],
+    crop_border: int,
+    input_order: str = "HWC",
+    test_y_channel: bool = False,
+):
     """Calculate PSNR (Peak Signal-to-Noise Ratio).
 
     Ref: https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
@@ -31,14 +39,15 @@ def calculate_psnr(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
         raise ValueError(
             f'Wrong input_order {input_order}. Supported input_orders are "HWC" and "CHW"'
         )
-    if type(img1) == torch.Tensor:
+
+    if isinstance(img1, jt.Var):
         if len(img1.shape) == 4:
             img1 = img1.squeeze(0)
-        img1 = img1.detach().cpu().numpy().transpose(1, 2, 0)
-    if type(img2) == torch.Tensor:
+        img1 = img1.detach().numpy().transpose(1, 2, 0)
+    if isinstance(img2, jt.Var):
         if len(img2.shape) == 4:
             img2 = img2.squeeze(0)
-        img2 = img2.detach().cpu().numpy().transpose(1, 2, 0)
+        img2 = img2.detach().numpy().transpose(1, 2, 0)
 
     img1 = reorder_image(img1, input_order=input_order)
     img2 = reorder_image(img2, input_order=input_order)
@@ -60,7 +69,7 @@ def calculate_psnr(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
     return 20.0 * np.log10(max_value / np.sqrt(mse))
 
 
-def _ssim(img1, img2):
+def _ssim(img1: np.ndarray, img2: np.ndarray) -> float:
     """Calculate SSIM (structural similarity) for one channel images.
 
     It is called by func:`calculate_ssim`.
@@ -96,12 +105,11 @@ def _ssim(img1, img2):
     return ssim_map.mean()
 
 
-def prepare_for_ssim(img, k):
-    import torch
-
-    with torch.no_grad():
-        img = torch.from_numpy(img).unsqueeze(0).unsqueeze(0).float()
-        conv = torch.nn.Conv2d(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
+def prepare_for_ssim(img: np.ndarray, k: int):
+    with jt.no_grad():
+        img: jt.Var = jt.unsqueeze(jt.unsqueeze(jt.array(img), dim=0))
+        img = img.float32()
+        conv = nn.Conv(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
         conv.weight.requires_grad = False
         conv.weight[:, :, :, :] = 1.0 / (k * k)
 
@@ -109,16 +117,14 @@ def prepare_for_ssim(img, k):
 
         img = img.squeeze(0).squeeze(0)
         img = img[0::k, 0::k]
-    return img.detach().cpu().numpy()
+    return img.detach().numpy()
 
 
-def prepare_for_ssim_rgb(img, k):
-    import torch
+def prepare_for_ssim_rgb(img: np.ndarray, k: int):
+    with jt.no_grad():
+        img = jt.array(img).float32()  # HxWx3
 
-    with torch.no_grad():
-        img = torch.from_numpy(img).float()  # HxWx3
-
-        conv = torch.nn.Conv2d(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
+        conv = nn.Conv2d(1, 1, k, stride=1, padding=k // 2, padding_mode="reflect")
         conv.weight.requires_grad = False
         conv.weight[:, :, :, :] = 1.0 / (k * k)
 
@@ -131,20 +137,20 @@ def prepare_for_ssim_rgb(img, k):
                 .squeeze(0)[0::k, 0::k]
             )
 
-    return torch.stack(new_img, dim=2).detach().cpu().numpy()
+    return jt.stack(new_img, dim=2).detach().numpy()
 
 
-def _3d_gaussian_calculator(img, conv3d):
+def _3d_gaussian_calculator(img: jt.Var, conv3d: nn.Conv3d) -> jt.Var:
     out = conv3d(img.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
     return out
 
 
-def _generate_3d_gaussian_kernel():
+def _generate_3d_gaussian_kernel() -> nn.Conv3d:
     kernel = cv2.getGaussianKernel(11, 1.5)
     window = np.outer(kernel, kernel.transpose())
     kernel_3 = cv2.getGaussianKernel(11, 1.5)
-    kernel = torch.tensor(np.stack([window * k for k in kernel_3], axis=0))
-    conv3d = torch.nn.Conv3d(
+    kernel = jt.array(np.stack([window * k for k in kernel_3], axis=0))
+    conv3d = nn.Conv3d(
         1,
         1,
         (11, 11, 11),
@@ -158,7 +164,7 @@ def _generate_3d_gaussian_kernel():
     return conv3d
 
 
-def _ssim_3d(img1, img2, max_value):
+def _ssim_3d(img1: np.ndarray, img2: np.ndarray, max_value: float):
     assert len(img1.shape) == 3 and len(img2.shape) == 3
     """Calculate SSIM (structural similarity) for one channel images.
 
@@ -176,10 +182,10 @@ def _ssim_3d(img1, img2, max_value):
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
 
-    kernel = _generate_3d_gaussian_kernel().cuda()
+    kernel = _generate_3d_gaussian_kernel()
 
-    img1 = torch.tensor(img1).float().cuda()
-    img2 = torch.tensor(img2).float().cuda()
+    img1 = jt.array(img1).float32()
+    img2 = jt.array(img2).float32()
 
     mu1 = _3d_gaussian_calculator(img1, kernel)
     mu2 = _3d_gaussian_calculator(img2, kernel)
@@ -191,13 +197,13 @@ def _ssim_3d(img1, img2, max_value):
     sigma2_sq = _3d_gaussian_calculator(img2**2, kernel) - mu2_sq
     sigma12 = _3d_gaussian_calculator(img1 * img2, kernel) - mu1_mu2
 
-    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / (
+    ssim_map: jt.Var = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / (
         (mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2)
     )
     return float(ssim_map.mean())
 
 
-def _ssim_cly(img1, img2):
+def _ssim_cly(img1: np.ndarray, img2: np.ndarray) -> float:
     assert len(img1.shape) == 2 and len(img2.shape) == 2
     """Calculate SSIM (structural similarity) for one channel images.
 
@@ -238,7 +244,13 @@ def _ssim_cly(img1, img2):
     return ssim_map.mean()
 
 
-def calculate_ssim(img1, img2, crop_border, input_order="HWC", test_y_channel=False):
+def calculate_ssim(
+    img1: np.ndarray,
+    img2: np.ndarray,
+    crop_border: int,
+    input_order: str = "HWC",
+    test_y_channel: bool = False,
+) -> float:
     """Calculate SSIM (structural similarity).
 
     Ref:
@@ -271,14 +283,14 @@ def calculate_ssim(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
             f'Wrong input_order {input_order}. Supported input_orders are "HWC" and "CHW"'
         )
 
-    if type(img1) == torch.Tensor:
+    if isinstance(img1, jt.Var):
         if len(img1.shape) == 4:
             img1 = img1.squeeze(0)
-        img1 = img1.detach().cpu().numpy().transpose(1, 2, 0)
-    if type(img2) == torch.Tensor:
+        img1 = img1.detach().numpy().transpose(1, 2, 0)
+    if isinstance(img2, jt.Var):
         if len(img2.shape) == 4:
             img2 = img2.squeeze(0)
-        img2 = img2.detach().cpu().numpy().transpose(1, 2, 0)
+        img2 = img2.detach().numpy().transpose(1, 2, 0)
 
     img1 = reorder_image(img1, input_order=input_order)
     img2 = reorder_image(img2, input_order=input_order)
@@ -302,7 +314,7 @@ def calculate_ssim(img1, img2, crop_border, input_order="HWC", test_y_channel=Fa
     # print('.._skimage',
     #       skimage.metrics.structural_similarity(img1, img2, data_range=255., multichannel=True))
     max_value = 1 if img1.max() <= 1 else 255
-    with torch.no_grad():
+    with jt.no_grad():
         final_ssim = _ssim_3d(img1, img2, max_value)
         ssims.append(final_ssim)
 

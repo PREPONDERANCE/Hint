@@ -1,13 +1,13 @@
 import cv2
 import math
 import numpy as np
-from scipy.ndimage.filters import convolve
 from scipy.special import gamma
+from scipy.ndimage import convolve
 
 from basicsr.metrics.metric_util import reorder_image, to_y_channel
 
 
-def estimate_aggd_param(block):
+def estimate_aggd_param(block: np.ndarray):
     """Estimate AGGD (Asymmetric Generalized Gaussian Distribution) paramters.
 
     Args:
@@ -37,7 +37,7 @@ def estimate_aggd_param(block):
     return (alpha, beta_l, beta_r)
 
 
-def compute_feature(block):
+def compute_feature(block: np.ndarray):
     """Compute features.
 
     Args:
@@ -65,13 +65,13 @@ def compute_feature(block):
 
 
 def niqe(
-    img,
-    mu_pris_param,
-    cov_pris_param,
-    gaussian_window,
-    block_size_h=96,
-    block_size_w=96,
-):
+    img: np.ndarray,
+    mu_pris_param: np.ndarray,
+    cov_pris_param: np.ndarray,
+    gaussian_window: np.ndarray,
+    block_size_h: int = 96,
+    block_size_w: int = 96,
+) -> float:
     """Calculate NIQE (Natural Image Quality Evaluator) metric.
 
     Ref: Making a "Completely Blind" Image Quality Analyzer.
@@ -160,7 +160,12 @@ def niqe(
     return quality
 
 
-def calculate_niqe(img, crop_border, input_order="HWC", convert_to="y"):
+def calculate_niqe(
+    img: np.ndarray,
+    crop_border: int,
+    input_order: str = "HWC",
+    convert_to: str = "y",
+) -> float:
     """Calculate NIQE (Natural Image Quality Evaluator) metric.
 
     Ref: Making a "Completely Blind" Image Quality Analyzer.
