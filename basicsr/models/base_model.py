@@ -1,9 +1,9 @@
-import logging
 import os
-import torch
-from collections import OrderedDict
+import logging
+import jittor as jt
+
 from copy import deepcopy
-from torch.nn.parallel import DataParallel, DistributedDataParallel
+from collections import OrderedDict
 
 from basicsr.models import lr_scheduler as lr_scheduler
 from basicsr.utils.dist_util import master_only
@@ -16,7 +16,7 @@ class BaseModel:
 
     def __init__(self, opt):
         self.opt = opt
-        self.device = torch.device("cuda" if opt["num_gpu"] != 0 else "cpu")
+        self.device = "cuda" if opt["num_gpu"] != 0 else "cpu"
         self.is_train = opt["is_train"]
         self.schedulers = []
         self.optimizers = []
@@ -32,6 +32,16 @@ class BaseModel:
 
     def save(self, epoch, current_iter):
         """Save networks and training state."""
+        pass
+
+    def dist_validation(
+        self, dataloader, current_iter, tb_logger, save_img, rgb2bgr, use_image
+    ):
+        pass
+
+    def nondist_validation(
+        self, dataloader, current_iter, tb_logger, save_img, rgb2bgr, use_image
+    ):
         pass
 
     def validation(
@@ -69,9 +79,8 @@ class BaseModel:
         net_g_ema_params = dict(self.net_g_ema.named_parameters())
 
         for k in net_g_ema_params.keys():
-            net_g_ema_params[k].data.mul_(decay).add_(
-                net_g_params[k].data, alpha=1 - decay
-            )
+            net_g_ema_params[k] *= decay
+            net_g_ema_params[k] += (1.0 - decay) * net_g_params[k]
 
     def get_current_log(self):
         return self.log_dict
@@ -83,17 +92,6 @@ class BaseModel:
         Args:
             net (nn.Module)
         """
-
-        net = net.to(self.device)
-        if self.opt["dist"]:
-            find_unused_parameters = self.opt.get("find_unused_parameters", False)
-            net = DistributedDataParallel(
-                net,
-                device_ids=[torch.cuda.current_device()],
-                find_unused_parameters=find_unused_parameters,
-            )
-        elif self.opt["num_gpu"] > 1:
-            net = DataParallel(net)
         return net
 
     def setup_schedulers(self):
@@ -126,14 +124,6 @@ class BaseModel:
                         optimizer, **train_opt["scheduler"]
                     )
                 )
-        elif scheduler_type == "TrueCosineAnnealingLR":
-            print("..", "cosineannealingLR")
-            for optimizer in self.optimizers:
-                self.schedulers.append(
-                    torch.optim.lr_scheduler.CosineAnnealingLR(
-                        optimizer, **train_opt["scheduler"]
-                    )
-                )
         elif scheduler_type == "CosineAnnealingLRWithRestart":
             print("..", "CosineAnnealingLR_With_Restart")
             for optimizer in self.optimizers:
@@ -161,8 +151,6 @@ class BaseModel:
         """Get bare model, especially under wrapping with
         DistributedDataParallel or DataParallel.
         """
-        if isinstance(net, (DataParallel, DistributedDataParallel)):
-            net = net.module
         return net
 
     @master_only
@@ -172,12 +160,9 @@ class BaseModel:
         Args:
             net (nn.Module)
         """
-        if isinstance(net, (DataParallel, DistributedDataParallel)):
-            net_cls_str = f"{net.__class__.__name__} - {net.module.__class__.__name__}"
-        else:
-            net_cls_str = f"{net.__class__.__name__}"
-
+        net_cls_str = f"{net.__class__.__name__}"
         net = self.get_bare_model(net)
+
         net_str = str(net)
         net_params = sum(map(lambda x: x.numel(), net.parameters()))
 
@@ -259,7 +244,7 @@ class BaseModel:
                 state_dict[key] = param.cpu()
             save_dict[param_key_] = state_dict
 
-        torch.save(save_dict, save_path)
+        jt.save(save_dict, save_path)
 
     def _print_different_keys_loading(self, crt_net, load_net, strict=True):
         """Print keys with differnet name or different size when loading models.
@@ -310,7 +295,7 @@ class BaseModel:
         """
         net = self.get_bare_model(net)
         logger.info(f"Loading {net.__class__.__name__} model from {load_path}.")
-        load_net = torch.load(load_path, map_location=lambda storage, loc: storage)
+        load_net = jt.load(load_path)
         if param_key is not None:
             if param_key not in load_net and "params" in load_net:
                 param_key = "params"
@@ -347,7 +332,7 @@ class BaseModel:
                 state["schedulers"].append(s.state_dict())
             save_filename = f"{current_iter}.state"
             save_path = os.path.join(self.opt["path"]["training_states"], save_filename)
-            torch.save(state, save_path)
+            jt.save(state, save_path)
 
     def resume_training(self, resume_state):
         """Reload the optimizers and schedulers for resumed training.
@@ -369,28 +354,21 @@ class BaseModel:
             self.schedulers[i].load_state_dict(s)
 
     def reduce_loss_dict(self, loss_dict):
-        """reduce loss dict.
-
-        In distributed training, it averages the losses among different GPUs .
-
-        Args:
-            loss_dict (OrderedDict): Loss dict.
-        """
-        with torch.no_grad():
-            if self.opt["dist"]:
-                keys = []
-                losses = []
-                for name, value in loss_dict.items():
-                    keys.append(name)
-                    losses.append(value)
-                losses = torch.stack(losses, 0)
-                torch.distributed.reduce(losses, dst=0)
-                if self.opt["rank"] == 0:
-                    losses /= self.opt["world_size"]
-                loss_dict = {key: loss for key, loss in zip(keys, losses)}
+        """Average loss dict across processes if distributed (Jittor MPI)."""
+        with jt.no_grad():
+            if self.opt.get("dist", False) and getattr(jt, "in_mpi", False):
+                # Average each scalar across workers
+                for k, v in list(loss_dict.items()):
+                    if isinstance(v, jt.Var):
+                        # sum then divide (mean)
+                        v = v.mpi_all_reduce("mean")
+                        loss_dict[k] = v
 
             log_dict = OrderedDict()
             for name, value in loss_dict.items():
-                log_dict[name] = value.mean().item()
-
+                # ensure scalar float for logging
+                try:
+                    log_dict[name] = float(value.mean().item())
+                except Exception:
+                    log_dict[name] = float(value)
             return log_dict

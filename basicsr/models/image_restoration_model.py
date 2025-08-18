@@ -1,12 +1,14 @@
 import importlib
-import torch
-from collections import OrderedDict
+import numpy as np
+import jittor as jt
+from jittor import nn
+
 from copy import deepcopy
 from os import path as osp
+from collections import OrderedDict
 
 import os
 import random
-import torch.nn.functional as F
 from functools import partial
 
 from basicsr.models.archs import define_network
@@ -17,24 +19,92 @@ loss_module = importlib.import_module("basicsr.models.losses")
 metric_module = importlib.import_module("basicsr.metrics")
 
 
-# import torch.autograd.set_detect_anomaly(True)
+class Beta:
+    """
+    A minimal, torch.distributions-like Beta for Jittor.
+
+    Notes
+    -----
+    - Uses the Gamma-ratio trick: Beta(a,b) = X / (X + Y),
+    with X ~ Gamma(a, 1), Y ~ Gamma(b, 1).
+    - We implement sampling via NumPy and wrap back into jt.Var.
+    (Good enough for mixup; reparameterized gradients are not provided.)
+    - rsample() here is the same as sample(); it does NOT provide
+    implicit reparameterization gradients like PyTorch.
+    """
+
+    def __init__(self, alpha: jt.Var, beta: jt.Var, dtype="float32", device="cuda"):
+        self.alpha_np = alpha.numpy().astype(np.float32)
+        self.beta_np = beta.numpy().astype(np.float32)
+
+        # Jittor “tensors” for convenience / printing
+        self.alpha = jt.array(self.alpha_np).astype(dtype)
+        self.beta = jt.array(self.beta_np).astype(dtype)
+
+        self.dtype = dtype
+        self.device = device  # kept for API similarity; Jittor manages device globally
+
+    @property
+    def batch_shape(self):
+        # Torch-style: shape that alpha/beta broadcast to
+        return np.broadcast(self.alpha_np, self.beta_np).shape
+
+    @property
+    def event_shape(self):
+        # Scalar distribution
+        return ()
+
+    def _np_beta_sample(self, out_shape):
+        # Broadcast alpha/beta to target shape, then sample elementwise via gamma
+        target_shape = out_shape if out_shape is not None else self.batch_shape or ()
+        # np.random.gamma supports array-shaped shape parameters
+        x = np.random.gamma(shape=self.alpha_np, scale=1.0, size=target_shape)
+        y = np.random.gamma(shape=self.beta_np, scale=1.0, size=target_shape)
+        lam = x / (x + y + 1e-12)
+        return lam.astype(np.float32)
+
+    def sample(self, shape=None):
+        """Sample without gradients; returns jt.Var (stop_grad)."""
+        lam = self._np_beta_sample(shape)
+        var = jt.array(lam).astype(self.dtype)
+        return var.stop_grad()  # make it explicit: no grad
+
+    def rsample(self, shape=None):
+        """
+        Torch-compatible name; identical to sample() here.
+        (No implicit reparameterization gradients provided.)
+        """
+        return self.sample(shape)
+
+    def to(self, dtype=None, device=None):
+        """Lightweight 'to' for API familiarity."""
+        if dtype is not None:
+            self.dtype = dtype
+            self.alpha = self.alpha.astype(dtype)
+            self.beta = self.beta.astype(dtype)
+        if device is not None:
+            self.device = device  # Jittor uses global flags; kept for symmetry
+        return self
+
+    def __repr__(self):
+        return f"Beta(alpha={self.alpha.numpy()}, beta={self.beta.numpy()}, dtype={self.dtype}, device={self.device})"
+
+
+class BetaDict:
+    def __init__(self):
+        pass
 
 
 class Mixing_Augment:
     def __init__(self, mixup_beta, use_identity, device):
-        self.dist = torch.distributions.beta.Beta(
-            torch.tensor([mixup_beta]), torch.tensor([mixup_beta])
-        )
+        self.dist = Beta(jt.array([mixup_beta]), jt.array([mixup_beta]))
         self.device = device
-
         self.use_identity = use_identity
-
         self.augments = [self.mixup]
 
     def mixup(self, target, input_):
         lam = self.dist.rsample((1, 1)).item()
-
-        r_index = torch.randperm(target.size(0)).to(self.device)
+        r_index = jt.randperm(target.size(0)).to(self.device)
 
         target = lam * target + (1 - lam) * target[r_index, :]
         input_ = lam * input_ + (1 - lam) * input_[r_index, :]
@@ -68,7 +138,7 @@ class ImageCleanModel(BaseModel):
                 mixup_beta, use_identity, self.device
             )
 
-        self.net_g = define_network(deepcopy(opt["network_g"]))
+        self.net_g: nn.Module = define_network(deepcopy(opt["network_g"]))
         self.net_g = self.model_to_device(self.net_g)
         self.print_network(self.net_g)
 
@@ -114,15 +184,14 @@ class ImageCleanModel(BaseModel):
         if train_opt.get("pixel_opt"):
             pixel_type = train_opt["pixel_opt"].pop("type")
             cri_pix_cls = getattr(loss_module, pixel_type)
-            self.cri_pix = cri_pix_cls(**train_opt["pixel_opt"]).to(self.device)
+            self.cri_pix = cri_pix_cls(**train_opt["pixel_opt"])
         else:
             raise ValueError("pixel loss are None.")
 
         if train_opt.get("fft_loss_opt"):
             fft_type = train_opt["fft_loss_opt"].pop("type")
             cri_fft_cls = getattr(loss_module, fft_type)
-            self.cri_fft = cri_fft_cls(**train_opt["fft_loss_opt"]).to(self.device)
-
+            self.cri_fft = cri_fft_cls(**train_opt["fft_loss_opt"])
         else:
             self.cri_fft = None
 
@@ -143,9 +212,9 @@ class ImageCleanModel(BaseModel):
 
         optim_type = train_opt["optim_g"].pop("type")
         if optim_type == "Adam":
-            self.optimizer_g = torch.optim.Adam(optim_params, **train_opt["optim_g"])
+            self.optimizer_g = jt.optim.Adam(optim_params, **train_opt["optim_g"])
         elif optim_type == "AdamW":
-            self.optimizer_g = torch.optim.AdamW(optim_params, **train_opt["optim_g"])
+            self.optimizer_g = jt.optim.AdamW(optim_params, **train_opt["optim_g"])
         else:
             raise NotImplementedError(f"optimizer {optim_type} is not supperted yet.")
         self.optimizers.append(self.optimizer_g)
@@ -166,20 +235,12 @@ class ImageCleanModel(BaseModel):
     def optimize_parameters(self, current_iter):
         self.optimizer_g.zero_grad()
         preds = self.net_g(self.lq)
+
         if not isinstance(preds, list):
             preds = [preds]
 
         self.output = preds[-1]
 
-        # loss_dict = OrderedDict()
-        # # pixel loss
-        # l_pix = 0.
-        # for pred in preds:
-        #     l_pix += self.cri_pix(pred, self.gt)
-
-        # loss_dict['l_pix'] = l_pix
-
-        # l_pix.backward()
         l_total = 0
         loss_dict = OrderedDict()
         # pixel loss
@@ -198,15 +259,16 @@ class ImageCleanModel(BaseModel):
             l_total += l_fft
             loss_dict["l_fft"] = l_fft
 
-        l_total = l_total + 0.0 * sum(p.sum() for p in self.net_g.parameters())
+        # Ensure l_total is a scalar Var before backward
+        if not isinstance(l_total, jt.Var):
+            l_total = jt.float32(l_total)
+        l_total = l_total.mean()
 
-        l_total = l_total
+        self.optimizer_g.pre_step(l_total)
 
-        l_total.backward()
-
-        if self.opt["train"]["use_grad_clip"]:
-            torch.nn.utils.clip_grad_norm_(self.net_g.parameters(), 0.01)
-        self.optimizer_g.step()
+        if self.opt["train"]["use_grad_clip"] and current_iter > 1:
+            self.optimizer_g.clip_grad_norm(0.01)
+        self.optimizer_g.step(l_total)
 
         self.log_dict = self.reduce_loss_dict(loss_dict)
 
@@ -221,7 +283,7 @@ class ImageCleanModel(BaseModel):
             mod_pad_h = window_size - h % window_size
         if w % window_size != 0:
             mod_pad_w = window_size - w % window_size
-        img = F.pad(self.lq, (0, mod_pad_w, 0, mod_pad_h), "reflect")
+        img = jt.nn.pad(self.lq, (0, mod_pad_w, 0, mod_pad_h), "reflect")
         self.nonpad_test(img)
         _, _, h, w = self.output.size()
         self.output = self.output[
@@ -233,14 +295,14 @@ class ImageCleanModel(BaseModel):
             img = self.lq
         if hasattr(self, "net_g_ema"):
             self.net_g_ema.eval()
-            with torch.no_grad():
+            with jt.no_grad():
                 pred = self.net_g_ema(img)
             if isinstance(pred, list):
                 pred = pred[-1]
             self.output = pred
         else:
             self.net_g.eval()
-            with torch.no_grad():
+            with jt.no_grad():
                 pred = self.net_g(img)
             if isinstance(pred, list):
                 pred = pred[-1]
@@ -277,7 +339,7 @@ class ImageCleanModel(BaseModel):
 
         cnt = 0
 
-        for idx, val_data in enumerate(dataloader):
+        for _, val_data in enumerate(dataloader):
             img_name = osp.splitext(osp.basename(val_data["lq_path"][0]))[0]
 
             self.feed_data(val_data)
@@ -292,7 +354,6 @@ class ImageCleanModel(BaseModel):
             # tentative for out of GPU memory
             del self.lq
             del self.output
-            torch.cuda.empty_cache()
 
             if save_img:
                 if self.opt["is_train"]:

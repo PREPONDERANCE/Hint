@@ -1,9 +1,12 @@
 import math
+
+from typing import Tuple, List
 from collections import Counter
-from torch.optim.lr_scheduler import _LRScheduler
+
+from jittor.optim import LRScheduler, Optimizer
 
 
-class MultiStepRestartLR(_LRScheduler):
+class MultiStepRestartLR(LRScheduler):
     """MultiStep with restarts learning rate scheme.
 
     Args:
@@ -18,12 +21,12 @@ class MultiStepRestartLR(_LRScheduler):
 
     def __init__(
         self,
-        optimizer,
-        milestones,
-        gamma=0.1,
-        restarts=(0,),
-        restart_weights=(1,),
-        last_epoch=-1,
+        optimizer: Optimizer,
+        milestones: List,
+        gamma: float = 0.1,
+        restarts: Tuple[int, ...] = (0,),
+        restart_weights: Tuple[float, ...] = (1,),
+        last_epoch: int = -1,
     ):
         self.milestones = Counter(milestones)
         self.gamma = gamma
@@ -46,7 +49,7 @@ class MultiStepRestartLR(_LRScheduler):
         ]
 
 
-class LinearLR(_LRScheduler):
+class LinearLR(LRScheduler):
     """
 
     Args:
@@ -56,7 +59,7 @@ class LinearLR(_LRScheduler):
         last_epoch (int): Used in _LRScheduler. Default: -1.
     """
 
-    def __init__(self, optimizer, total_iter, last_epoch=-1):
+    def __init__(self, optimizer: Optimizer, total_iter: int, last_epoch: int = -1):
         self.total_iter = total_iter
         super(LinearLR, self).__init__(optimizer, last_epoch)
 
@@ -67,7 +70,7 @@ class LinearLR(_LRScheduler):
         return [weight * group["initial_lr"] for group in self.optimizer.param_groups]
 
 
-class VibrateLR(_LRScheduler):
+class VibrateLR(LRScheduler):
     """
 
     Args:
@@ -77,7 +80,7 @@ class VibrateLR(_LRScheduler):
         last_epoch (int): Used in _LRScheduler. Default: -1.
     """
 
-    def __init__(self, optimizer, total_iter, last_epoch=-1):
+    def __init__(self, optimizer: Optimizer, total_iter: int, last_epoch: int = -1):
         self.total_iter = total_iter
         super(VibrateLR, self).__init__(optimizer, last_epoch)
 
@@ -108,7 +111,7 @@ class VibrateLR(_LRScheduler):
         return [weight * group["initial_lr"] for group in self.optimizer.param_groups]
 
 
-def get_position_from_periods(iteration, cumulative_period):
+def get_position_from_periods(iteration: int, cumulative_period: List[int]) -> int:
     """Get the position from a period list.
 
     It will return the index of the right-closest number in the period list.
@@ -129,7 +132,7 @@ def get_position_from_periods(iteration, cumulative_period):
             return i
 
 
-class CosineAnnealingRestartLR(_LRScheduler):
+class CosineAnnealingRestartLR(LRScheduler):
     """Cosine annealing with restarts learning rate scheme.
 
     An example of config:
@@ -150,7 +153,12 @@ class CosineAnnealingRestartLR(_LRScheduler):
     """
 
     def __init__(
-        self, optimizer, periods, restart_weights=(1,), eta_min=0, last_epoch=-1
+        self,
+        optimizer: Optimizer,
+        periods: List[int],
+        restart_weights: Tuple[float, ...] = (1,),
+        eta_min: int = 0,
+        last_epoch: int = -1,
     ):
         self.periods = periods
         self.restart_weights = restart_weights
@@ -184,7 +192,7 @@ class CosineAnnealingRestartLR(_LRScheduler):
         ]
 
 
-class CosineAnnealingRestartCyclicLR(_LRScheduler):
+class CosineAnnealingRestartCyclicLR(LRScheduler):
     """Cosine annealing with restarts learning rate scheme.
     An example of config:
     periods = [10, 10, 10, 10]
@@ -202,7 +210,12 @@ class CosineAnnealingRestartCyclicLR(_LRScheduler):
     """
 
     def __init__(
-        self, optimizer, periods, restart_weights=(1,), eta_mins=(0,), last_epoch=-1
+        self,
+        optimizer: Optimizer,
+        periods: List[int],
+        restart_weights: Tuple[float, ...] = (1,),
+        eta_mins: Tuple[int, ...] = (0,),
+        last_epoch: int = -1,
     ):
         self.periods = periods
         self.restart_weights = restart_weights
